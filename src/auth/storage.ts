@@ -12,9 +12,18 @@ export const tokenStorage = {
     }
   },
   async set(token: string): Promise<void> {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    try {
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+    } catch {
+      // SecureStore has no web implementation; the in-memory token still
+      // works for the session, only persistence across restarts is lost.
+    }
   },
   async clear(): Promise<void> {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    try {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+    } catch {
+      // See set() above.
+    }
   },
 };
