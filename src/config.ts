@@ -17,6 +17,9 @@ export const config = {
   /** Base URL of the Next.js API. Used only when USE_MOCK is false. */
   apiBaseUrl: env.EXPO_PUBLIC_API_BASE_URL ?? 'https://app.cryptoai.example/api',
 
+  /** Public website, opened in the browser to start a subscription / free trial. */
+  webUrl: env.EXPO_PUBLIC_WEB_URL ?? 'https://app.cryptoai.example',
+
   /** When true, all API calls are served by the local mock layer. */
   useMock: bool(env.EXPO_PUBLIC_USE_MOCK, true),
 
