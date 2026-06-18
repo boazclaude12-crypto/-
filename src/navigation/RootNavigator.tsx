@@ -11,6 +11,8 @@ import { AnalysisDetailScreen } from '@/screens/AnalysisDetailScreen';
 import { PricesListScreen } from '@/screens/PricesListScreen';
 import { PriceDetailScreen } from '@/screens/PriceDetailScreen';
 import { AlertsScreen } from '@/screens/AlertsScreen';
+import { LessonsScreen } from '@/screens/LessonsScreen';
+import { LessonDetailScreen } from '@/screens/LessonDetailScreen';
 import { colors } from '@/theme/colors';
 import type { AppStackParamList, AuthStackParamList } from './types';
 
@@ -77,6 +79,16 @@ function AppFlow() {
         name="Alerts"
         component={AlertsScreen}
         options={{ title: 'Price Alerts' }}
+      />
+      <AppStack.Screen
+        name="Lessons"
+        component={LessonsScreen}
+        options={{ title: 'Learn' }}
+      />
+      <AppStack.Screen
+        name="LessonDetail"
+        component={LessonDetailScreen}
+        options={{ title: 'Lesson' }}
       />
     </AppStack.Navigator>
   );
