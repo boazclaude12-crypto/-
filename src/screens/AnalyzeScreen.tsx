@@ -98,6 +98,9 @@ export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
           <Text style={styles.sub}>Upload a chart to get an analysis</Text>
         </View>
         <View style={styles.topActions}>
+          <TouchableOpacity onPress={() => navigation.navigate('Prices')}>
+            <Text style={styles.link}>Prices</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('History')}>
             <Text style={styles.link}>History</Text>
           </TouchableOpacity>

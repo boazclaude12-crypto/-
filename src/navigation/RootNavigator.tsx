@@ -8,6 +8,8 @@ import { RegisterScreen } from '@/screens/RegisterScreen';
 import { AnalyzeScreen } from '@/screens/AnalyzeScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { AnalysisDetailScreen } from '@/screens/AnalysisDetailScreen';
+import { PricesListScreen } from '@/screens/PricesListScreen';
+import { PriceDetailScreen } from '@/screens/PriceDetailScreen';
 import { colors } from '@/theme/colors';
 import type { AppStackParamList, AuthStackParamList } from './types';
 
@@ -59,6 +61,16 @@ function AppFlow() {
         name="AnalysisDetail"
         component={AnalysisDetailScreen}
         options={{ title: 'Analysis' }}
+      />
+      <AppStack.Screen
+        name="Prices"
+        component={PricesListScreen}
+        options={{ title: 'Live Prices' }}
+      />
+      <AppStack.Screen
+        name="PriceDetail"
+        component={PriceDetailScreen}
+        options={({ route }) => ({ title: route.params.symbol.replace('USDT', '') })}
       />
     </AppStack.Navigator>
   );
