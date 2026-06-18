@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "CryptoAI",
+    "slug": "cryptoai-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "cryptoai",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0E11"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cryptoai.app"
+    },
+    "android": {
+      "package": "com.cryptoai.app"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CryptoAI to access your photos to upload chart screenshots for analysis."
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}
