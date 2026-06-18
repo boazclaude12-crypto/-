@@ -13,6 +13,7 @@ import { PriceDetailScreen } from '@/screens/PriceDetailScreen';
 import { AlertsScreen } from '@/screens/AlertsScreen';
 import { LessonsScreen } from '@/screens/LessonsScreen';
 import { LessonDetailScreen } from '@/screens/LessonDetailScreen';
+import { LiveChartScreen } from '@/screens/LiveChartScreen';
 import { colors } from '@/theme/colors';
 import type { AppStackParamList, AuthStackParamList } from './types';
 
@@ -89,6 +90,11 @@ function AppFlow() {
         name="LessonDetail"
         component={LessonDetailScreen}
         options={{ title: 'Lesson' }}
+      />
+      <AppStack.Screen
+        name="LiveChart"
+        component={LiveChartScreen}
+        options={{ title: 'Live Charts' }}
       />
     </AppStack.Navigator>
   );
