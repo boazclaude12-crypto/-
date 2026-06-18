@@ -15,6 +15,7 @@ import { api, ApiError, type Analysis, type SubscriptionStatus } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { AnalysisResultCard } from '@/components/AnalysisResultCard';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { colors } from '@/theme/colors';
 import type { AppStackScreenProps } from '@/navigation/types';
 
@@ -97,17 +98,15 @@ export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
           <Text style={styles.hello}>Hi, {user?.email ?? 'trader'}</Text>
           <Text style={styles.sub}>Upload a chart to get an analysis</Text>
         </View>
-        <View style={styles.topActions}>
-          <TouchableOpacity onPress={() => navigation.navigate('Prices')}>
-            <Text style={styles.link}>Prices</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('History')}>
-            <Text style={styles.link}>History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={signOut}>
-            <Text style={styles.signOut}>Sign out</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={signOut}>
+          <Text style={styles.signOut}>Sign out</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.navRow}>
+        <Chip label="Prices" active={false} onPress={() => navigation.navigate('Prices')} />
+        <Chip label="History" active={false} onPress={() => navigation.navigate('History')} />
+        <Chip label="Alerts" active={false} onPress={() => navigation.navigate('Alerts')} />
       </View>
 
       {sub && (
@@ -175,9 +174,8 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   hello: { color: colors.text, fontSize: 20, fontWeight: '800' },
   sub: { color: colors.textMuted, fontSize: 14, marginTop: 2 },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  link: { color: colors.primary, fontSize: 14, fontWeight: '700' },
   signOut: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  navRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   usage: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: 10,

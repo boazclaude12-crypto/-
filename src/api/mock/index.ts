@@ -106,7 +106,7 @@ export async function handleMock<T>(req: MockRequest): Promise<T> {
     // ---- Alerts -----------------------------------------------------------
     case 'GET /alerts':
       requireUser(token);
-      return db.alerts as T;
+      return [...db.alerts] as T;
     case 'POST /alerts':
       requireUser(token);
       return createAlert(body as CreateAlertRequest) as T;

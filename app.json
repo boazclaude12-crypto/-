@@ -25,7 +25,13 @@
           "photosPermission": "Allow CryptoAI to access your photos to upload chart screenshots for analysis."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#F0B90B"
+        }
+      ]
     ]
   }
 }

@@ -10,6 +10,7 @@ import { HistoryScreen } from '@/screens/HistoryScreen';
 import { AnalysisDetailScreen } from '@/screens/AnalysisDetailScreen';
 import { PricesListScreen } from '@/screens/PricesListScreen';
 import { PriceDetailScreen } from '@/screens/PriceDetailScreen';
+import { AlertsScreen } from '@/screens/AlertsScreen';
 import { colors } from '@/theme/colors';
 import type { AppStackParamList, AuthStackParamList } from './types';
 
@@ -71,6 +72,11 @@ function AppFlow() {
         name="PriceDetail"
         component={PriceDetailScreen}
         options={({ route }) => ({ title: route.params.symbol.replace('USDT', '') })}
+      />
+      <AppStack.Screen
+        name="Alerts"
+        component={AlertsScreen}
+        options={{ title: 'Price Alerts' }}
       />
     </AppStack.Navigator>
   );

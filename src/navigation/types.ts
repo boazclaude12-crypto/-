@@ -13,6 +13,7 @@ export type AppStackParamList = {
   AnalysisDetail: { id: string };
   Prices: undefined;
   PriceDetail: { symbol: string };
+  Alerts: undefined;
 };
 
 export type AuthStackScreenProps<T extends keyof AuthStackParamList> = NativeStackScreenProps<
