@@ -70,6 +70,28 @@ export function seed(): void {
     }
   );
 
+  // A few more, older entries so the history list has enough pages to scroll through.
+  const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+  for (let i = 0; i < 14; i++) {
+    const direction = i % 2 === 0 ? 'long' : 'short';
+    const entry = 1000 + i * 137.4;
+    db.analyses.push({
+      id: `an_${900 - i}`,
+      created_at: new Date(Date.UTC(2026, 5, 15 - i, 10, 0, 0)).toISOString(),
+      image_url: `https://picsum.photos/seed/hist${i}/800/450`,
+      symbol: symbols[i % symbols.length],
+      direction,
+      entry_point: Number(entry.toFixed(2)),
+      take_profit: Number((direction === 'long' ? entry * 1.04 : entry * 0.96).toFixed(2)),
+      stop_loss: Number((direction === 'long' ? entry * 0.98 : entry * 1.02).toFixed(2)),
+      confidence: Number((0.55 + ((i * 7) % 30) / 100).toFixed(2)),
+      explanation:
+        direction === 'long'
+          ? 'Higher-low structure with reclaimed support; targeting the next resistance zone.'
+          : 'Lower-high rejection at resistance; targeting the next demand zone.',
+    });
+  }
+
   db.alerts.push({
     id: 'al_001',
     symbol: 'BTCUSDT',

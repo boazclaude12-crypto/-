@@ -9,6 +9,8 @@ export type AuthStackParamList = {
 /** Screens shown when the user is signed in. */
 export type AppStackParamList = {
   Analyze: undefined;
+  History: undefined;
+  AnalysisDetail: { id: string };
 };
 
 export type AuthStackScreenProps<T extends keyof AuthStackParamList> = NativeStackScreenProps<

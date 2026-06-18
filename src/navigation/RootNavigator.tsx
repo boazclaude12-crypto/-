@@ -6,6 +6,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { RegisterScreen } from '@/screens/RegisterScreen';
 import { AnalyzeScreen } from '@/screens/AnalyzeScreen';
+import { HistoryScreen } from '@/screens/HistoryScreen';
+import { AnalysisDetailScreen } from '@/screens/AnalysisDetailScreen';
 import { colors } from '@/theme/colors';
 import type { AppStackParamList, AuthStackParamList } from './types';
 
@@ -47,6 +49,16 @@ function AppFlow() {
         name="Analyze"
         component={AnalyzeScreen}
         options={{ headerShown: false }}
+      />
+      <AppStack.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{ title: 'History' }}
+      />
+      <AppStack.Screen
+        name="AnalysisDetail"
+        component={AnalysisDetailScreen}
+        options={{ title: 'Analysis' }}
       />
     </AppStack.Navigator>
   );
