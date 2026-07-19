@@ -57,7 +57,9 @@ export async function handleMock<T>(req: MockRequest): Promise<T> {
   seed();
   await delay(config.mockLatencyMs);
 
-  const { path, method, token } = req;
+  const { method, token } = req;
+  // Strip /api/mobile prefix so mock routes match short paths
+  const path = req.path.replace(/^\/api\/mobile/, '');
   const body = (req.body ?? {}) as Record<string, any>;
   const route = `${method} ${stripId(path)}`;
 
@@ -95,7 +97,8 @@ export async function handleMock<T>(req: MockRequest): Promise<T> {
       return found as T;
     }
 
-    // ---- Prices (public-ish, still behind auth per spec) ------------------
+    // ---- Prices ------------------------------------------------------------
+    case 'GET /prices':
     case 'GET /prices/list':
       requireUser(token);
       return PRICES as T;
