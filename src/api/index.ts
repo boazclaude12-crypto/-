@@ -76,20 +76,20 @@ export const api = {
   prices: {
     list: () => request<PriceListItem[]>('/api/mobile/prices'),
     history: (symbol: string, range: PriceRange = '24h') =>
-      request<PriceHistory>(`/prices/${symbol}`, { query: { range } }),
+      request<PriceHistory>(`/api/mobile/prices/${symbol}`, { query: { range } }),
   },
 
   alerts: {
-    list: () => request<PriceAlert[]>('/alerts'),
+    list: () => request<PriceAlert[]>('/api/mobile/alerts'),
     create: (payload: CreateAlertRequest) =>
-      request<PriceAlert>('/alerts', { method: 'POST', body: payload }),
-    remove: (id: string) => request<{ success: boolean }>(`/alerts/${id}`, { method: 'DELETE' }),
+      request<PriceAlert>('/api/mobile/alerts', { method: 'POST', body: payload }),
+    remove: (id: string) => request<{ success: boolean }>(`/api/mobile/alerts/${id}`, { method: 'DELETE' }),
     registerPushToken: (payload: PushTokenRequest) =>
-      request<{ success: boolean }>('/push-tokens', { method: 'POST', body: payload }),
+      request<{ success: boolean }>('/api/mobile/push-tokens', { method: 'POST', body: payload }),
   },
 
   lessons: {
-    list: () => request<LessonSummary[]>('/lessons'),
-    get: (id: string) => request<Lesson>(`/lessons/${id}`),
+    list: () => request<LessonSummary[]>('/api/mobile/lessons'),
+    get: (id: string) => request<Lesson>(`/api/mobile/lessons/${id}`),
   },
 };
