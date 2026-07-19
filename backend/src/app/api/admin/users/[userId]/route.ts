@@ -1,0 +1,89 @@
+import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// PUT endpoint to update user details
+export async function PUT(request: NextRequest) {
+  try {
+    // Verify admin authorization
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.split(' ')[1];
+    
+    if (token !== process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get user ID from URL
+    const userId = request.url.split('/users/')[1].split('/')[0];
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    // Get request body
+    const userData = await request.json();
+    
+    // Extract only the fields that should be updated in user_profiles
+    const {
+      name,
+      avatar_url,
+      plan_id,
+      userPersonalId,
+      cardcom_account_id,
+      cardcom_low_profile_id,
+      recurring_is_active,
+      last_bill_date,
+      disable_date,
+      recurring_id,
+      discount_code_id,
+      cancellation_discount_used,
+      cancellation_discount_date,
+      cancellation_reason,
+      cancellation_date,
+      discount_percent
+    } = userData;
+
+    // Update user profile in Supabase
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({
+        name,
+        avatar_url,
+        plan_id,
+        userPersonalId,
+        cardcom_account_id,
+        cardcom_low_profile_id,
+        recurring_is_active,
+        last_bill_date,
+        disable_date,
+        recurring_id,
+        discount_code_id,
+        cancellation_discount_used,
+        cancellation_discount_date,
+        cancellation_reason,
+        cancellation_date,
+        discount_percent
+      })
+      .eq('user_id', userId)
+      .select();
+
+    if (error) {
+      console.error('Error updating user profile:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ 
+      message: 'User profile updated successfully', 
+      data 
+    });
+  } catch (error) {
+    console.error('Error in PUT /api/admin/users/[userId]:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+} 

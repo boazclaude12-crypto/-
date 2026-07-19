@@ -47,46 +47,32 @@ export function seed(): void {
       created_at: '2026-06-17T14:22:00.000Z',
       image_url: 'https://picsum.photos/seed/btc/800/450',
       symbol: 'BTCUSDT',
-      direction: 'long',
-      entry_point: 64850,
-      take_profit: 68200,
-      stop_loss: 63100,
-      confidence: 0.78,
+      type: 'crypto',
       explanation:
-        'Price reclaimed the 64.5k support with rising volume and a bullish RSI divergence on the 4H. Structure favors a long toward the 68.2k liquidity pocket; invalidation below 63.1k.',
+        '## BTC/USDT Analysis\n\nPrice reclaimed the 64.5k support with rising volume and a bullish RSI divergence on the 4H.\n\n### Bias\n\n- **Direction**: Long\n- **Entry zone**: ~64,850\n- **Target**: 68,200 liquidity pocket\n- **Stop**: Below 63,100\n\nStructure favors continuation while price holds above the 64.5k level.',
     },
     {
       id: 'an_1000',
       created_at: '2026-06-16T09:05:00.000Z',
       image_url: 'https://picsum.photos/seed/eth/800/450',
       symbol: 'ETHUSDT',
-      direction: 'short',
-      entry_point: 3520,
-      take_profit: 3280,
-      stop_loss: 3640,
-      confidence: 0.64,
+      type: 'crypto',
       explanation:
-        'Rejection at the 3.5k range high with a lower-high formation. Momentum cooling; short bias toward 3.28k while price stays under 3.64k.',
+        '## ETH/USDT Analysis\n\nRejection at the 3.5k range high with a lower-high formation. Momentum is cooling.\n\n### Bias\n\n- **Direction**: Short\n- **Entry zone**: ~3,520\n- **Target**: 3,280\n- **Stop**: Above 3,640\n\nShort bias is valid while price stays under the 3.64k level.',
     }
   );
 
-  // A few more, older entries so the history list has enough pages to scroll through.
+  // Older entries for history scrolling.
   const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
   for (let i = 0; i < 14; i++) {
-    const direction = i % 2 === 0 ? 'long' : 'short';
-    const entry = 1000 + i * 137.4;
     db.analyses.push({
       id: `an_${900 - i}`,
       created_at: new Date(Date.UTC(2026, 5, 15 - i, 10, 0, 0)).toISOString(),
       image_url: `https://picsum.photos/seed/hist${i}/800/450`,
       symbol: symbols[i % symbols.length],
-      direction,
-      entry_point: Number(entry.toFixed(2)),
-      take_profit: Number((direction === 'long' ? entry * 1.04 : entry * 0.96).toFixed(2)),
-      stop_loss: Number((direction === 'long' ? entry * 0.98 : entry * 1.02).toFixed(2)),
-      confidence: Number((0.55 + ((i * 7) % 30) / 100).toFixed(2)),
+      type: 'crypto',
       explanation:
-        direction === 'long'
+        i % 2 === 0
           ? 'Higher-low structure with reclaimed support; targeting the next resistance zone.'
           : 'Lower-high rejection at resistance; targeting the next demand zone.',
     });

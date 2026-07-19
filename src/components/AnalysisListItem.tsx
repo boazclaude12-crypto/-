@@ -11,28 +11,24 @@ export function AnalysisListItem({
   analysis: Analysis;
   onPress: () => void;
 }) {
-  const isLong = analysis.direction === 'long';
+  const firstLine = analysis.explanation.split('\n').find(l => l.trim()) ?? '';
+  const preview = firstLine.replace(/^#+\s*/, '').slice(0, 60);
+
   return (
     <TouchableOpacity style={styles.row} activeOpacity={0.8} onPress={onPress}>
       <Image source={{ uri: analysis.image_url }} style={styles.thumb} resizeMode="cover" />
       <View style={styles.info}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{analysis.symbol ?? 'Chart analysis'}</Text>
-          <View style={[styles.badge, { backgroundColor: isLong ? colors.green : colors.red }]}>
-            <Text style={styles.badgeText}>{analysis.direction.toUpperCase()}</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{(analysis.type ?? 'crypto').toUpperCase()}</Text>
           </View>
         </View>
-        <Text style={styles.meta}>
-          Entry {fmt(analysis.entry_point)} · {Math.round(analysis.confidence * 100)}% confidence
-        </Text>
+        {preview ? <Text style={styles.meta} numberOfLines={1}>{preview}</Text> : null}
         <Text style={styles.time}>{relativeTime(analysis.created_at)}</Text>
       </View>
     </TouchableOpacity>
   );
-}
-
-function fmt(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 const styles = StyleSheet.create({
@@ -49,8 +45,8 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 4, justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: colors.primary + '22' },
+  badgeText: { color: colors.primary, fontWeight: '800', fontSize: 11 },
   meta: { color: colors.textMuted, fontSize: 13 },
   time: { color: colors.textMuted, fontSize: 12 },
 });

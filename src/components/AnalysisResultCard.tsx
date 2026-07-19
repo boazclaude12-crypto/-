@@ -1,41 +1,42 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Analysis } from '@/api';
 import { colors } from '@/theme/colors';
 
-function Row({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, accent ? { color: accent } : null]}>{value}</Text>
-    </View>
-  );
-}
-
 export function AnalysisResultCard({ analysis }: { analysis: Analysis }) {
-  const isLong = analysis.direction === 'long';
+  const lines = analysis.explanation.split('\n');
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{analysis.symbol ?? 'Chart analysis'}</Text>
-        <View style={[styles.badge, { backgroundColor: isLong ? colors.green : colors.red }]}>
-          <Text style={styles.badgeText}>{analysis.direction.toUpperCase()}</Text>
-        </View>
+        <Text style={styles.title}>{analysis.symbol ?? 'Chart Analysis'}</Text>
+        {analysis.type ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{analysis.type.toUpperCase()}</Text>
+          </View>
+        ) : null}
       </View>
 
-      <Row label="Entry point" value={fmt(analysis.entry_point)} />
-      <Row label="Take profit" value={fmt(analysis.take_profit)} accent={colors.green} />
-      <Row label="Stop loss" value={fmt(analysis.stop_loss)} accent={colors.red} />
-      <Row label="Confidence" value={`${Math.round(analysis.confidence * 100)}%`} />
+      <View style={styles.divider} />
 
-      <Text style={styles.explanationLabel}>Explanation</Text>
-      <Text style={styles.explanation}>{analysis.explanation}</Text>
+      {lines.map((line, i) => {
+        if (!line.trim()) return <View key={i} style={styles.spacer} />;
+        if (line.startsWith('# ')) return <Text key={i} style={styles.h1}>{line.slice(2)}</Text>;
+        if (line.startsWith('## ')) return <Text key={i} style={styles.h2}>{line.slice(3)}</Text>;
+        if (line.startsWith('### ')) return <Text key={i} style={styles.h3}>{line.slice(4)}</Text>;
+        if (line.startsWith('- ') || line.startsWith('• ')) {
+          return (
+            <View key={i} style={styles.bullet}>
+              <Text style={styles.bulletDot}>•</Text>
+              <Text style={styles.bulletText}>{line.slice(2)}</Text>
+            </View>
+          );
+        }
+        // Bold inline (**text**)
+        return <Text key={i} style={styles.body}>{line}</Text>;
+      })}
     </View>
   );
-}
-
-function fmt(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 const styles = StyleSheet.create({
@@ -45,15 +46,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 18,
-    gap: 12,
+    gap: 6,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   title: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  badge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowLabel: { color: colors.textMuted, fontSize: 15 },
-  rowValue: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  explanationLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginTop: 4 },
-  explanation: { color: colors.text, fontSize: 14, lineHeight: 21 },
+  badge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: colors.primary + '22' },
+  badgeText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  h1: { color: colors.text, fontSize: 17, fontWeight: '800', marginTop: 8 },
+  h2: { color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 6 },
+  h3: { color: colors.primary, fontSize: 15, fontWeight: '700', marginTop: 4 },
+  body: { color: colors.text, fontSize: 14, lineHeight: 22 },
+  bullet: { flexDirection: 'row', gap: 6, paddingLeft: 4 },
+  bulletDot: { color: colors.primary, fontSize: 14, lineHeight: 22 },
+  bulletText: { color: colors.text, fontSize: 14, lineHeight: 22, flex: 1 },
+  spacer: { height: 6 },
 });

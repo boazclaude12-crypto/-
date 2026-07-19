@@ -70,20 +70,16 @@ export interface VerifyIapRequest {
 
 // ---- Analysis -------------------------------------------------------------
 
-export type TradeDirection = 'long' | 'short';
-
 export interface Analysis {
   id: string;
   created_at: string;
-  /** URL/URI of the uploaded chart image. */
+  /** URL of the uploaded chart image stored in Supabase Storage. */
   image_url: string;
+  /** Asset name (coin/stock ticker), e.g. "BTC". */
   symbol: string | null;
-  direction: TradeDirection;
-  entry_point: number;
-  take_profit: number;
-  stop_loss: number;
-  /** 0..1 model confidence. */
-  confidence: number;
+  /** Asset category: "crypto" | "stock" | etc. */
+  type: string;
+  /** Full OpenAI analysis text (markdown). */
   explanation: string;
 }
 

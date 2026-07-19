@@ -29,38 +29,52 @@ export * from './types';
 export const api = {
   auth: {
     register: (email: string, password: string) =>
-      request<AuthResponse>('/auth/register', { method: 'POST', body: { email, password }, auth: false }),
+      request<AuthResponse>('/api/mobile/auth/register', { method: 'POST', body: { email, password }, auth: false }),
     login: (email: string, password: string) =>
-      request<AuthResponse>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
-    me: () => request<User>('/auth/me'),
+      request<AuthResponse>('/api/mobile/auth/login', { method: 'POST', body: { email, password }, auth: false }),
+    me: () => request<User>('/api/mobile/auth/me'),
   },
 
   subscription: {
-    status: () => request<SubscriptionStatus>('/subscription/status'),
-    plans: () => request<SubscriptionPlan[]>('/subscription/plans'),
+    status: () => request<SubscriptionStatus>('/api/mobile/subscription/status'),
+    plans: () => request<SubscriptionPlan[]>('/api/plans'),
     verifyIap: (payload: VerifyIapRequest) =>
-      request<SubscriptionStatus>('/subscription/verify-iap', { method: 'POST', body: payload }),
+      request<SubscriptionStatus>('/api/mobile/subscription/verify-iap', { method: 'POST', body: payload }),
   },
 
   analysis: {
-    /** Upload a chart image (multipart) and receive the analysis. */
-    analyze: (image: { uri: string; name?: string; type?: string }) => {
+    /**
+     * Upload a chart image for AI analysis.
+     * Pass base64 (from ImagePicker) to send JSON; falls back to FormData for mock.
+     */
+    analyze: (
+      image: { uri: string; base64?: string; name?: string; type?: string },
+      assetName = 'chart',
+      assetType = 'crypto',
+    ) => {
+      if (image.base64) {
+        const mimeType = image.type ?? 'image/jpeg';
+        return request<Analysis>('/api/analysis', {
+          method: 'POST',
+          body: {
+            assetName,
+            assetNameType: assetType,
+            imageBase64: `data:${mimeType};base64,${image.base64}`,
+          },
+        });
+      }
+      // Mock fallback: multipart
       const form = new FormData();
-      // React Native FormData accepts this file shape directly.
-      form.append('image', {
-        uri: image.uri,
-        name: image.name ?? 'chart.jpg',
-        type: image.type ?? 'image/jpeg',
-      } as any);
-      return request<Analysis>('/analyze', { method: 'POST', form });
+      form.append('image', { uri: image.uri, name: image.name ?? 'chart.jpg', type: image.type ?? 'image/jpeg' } as any);
+      return request<Analysis>('/api/analysis', { method: 'POST', form });
     },
     history: (page = 1, pageSize = 10) =>
-      request<Paginated<Analysis>>('/analyses/history', { query: { page, page_size: pageSize } }),
-    get: (id: string) => request<Analysis>(`/analyses/${id}`),
+      request<Paginated<Analysis>>('/api/mobile/analyses/history', { query: { page, page_size: pageSize } }),
+    get: (id: string) => request<Analysis>(`/api/mobile/analyses/${id}`),
   },
 
   prices: {
-    list: () => request<PriceListItem[]>('/prices/list'),
+    list: () => request<PriceListItem[]>('/api/mobile/prices'),
     history: (symbol: string, range: PriceRange = '24h') =>
       request<PriceHistory>(`/prices/${symbol}`, { query: { range } }),
   },

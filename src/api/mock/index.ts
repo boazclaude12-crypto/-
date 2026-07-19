@@ -202,22 +202,17 @@ function analyze(form?: FormData): Analysis {
   const file: any = form && typeof (form as any).get === 'function' ? (form as any).get('image') : null;
   if (file && typeof file === 'object' && 'uri' in file) imageUrl = file.uri;
 
-  const direction = Math.random() > 0.5 ? 'long' : 'short';
+  const isBullish = Math.random() > 0.5;
   const entry = Number((60000 + Math.random() * 8000).toFixed(2));
   const analysis: Analysis = {
     id: newId('an'),
     created_at: new Date().toISOString(),
     image_url: imageUrl,
     symbol: null,
-    direction,
-    entry_point: entry,
-    take_profit: Number((direction === 'long' ? entry * 1.05 : entry * 0.95).toFixed(2)),
-    stop_loss: Number((direction === 'long' ? entry * 0.975 : entry * 1.025).toFixed(2)),
-    confidence: Number((0.6 + Math.random() * 0.35).toFixed(2)),
-    explanation:
-      direction === 'long'
-        ? 'Bullish market structure with a clean higher-low and reclaimed support. Targeting the next liquidity zone; invalidation below the recent swing low.'
-        : 'Bearish rejection at range resistance with weakening momentum. Targeting the lower demand zone; invalidation above the recent swing high.',
+    type: 'crypto',
+    explanation: isBullish
+      ? `## Chart Analysis\n\n### Bias: Bullish 📈\n\nBullish market structure with a clean higher-low and reclaimed support.\n\n- **Entry zone**: ~${entry.toLocaleString()}\n- **Target**: ${(entry * 1.05).toFixed(0)} liquidity zone\n- **Stop**: Below ${(entry * 0.975).toFixed(0)}\n\nInvalidation below the recent swing low.`
+      : `## Chart Analysis\n\n### Bias: Bearish 📉\n\nBearish rejection at range resistance with weakening momentum.\n\n- **Entry zone**: ~${entry.toLocaleString()}\n- **Target**: ${(entry * 0.95).toFixed(0)} demand zone\n- **Stop**: Above ${(entry * 1.025).toFixed(0)}\n\nInvalidation above the recent swing high.`,
   };
   db.analyses.unshift(analysis);
   return analysis;

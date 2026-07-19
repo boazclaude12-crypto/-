@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -21,6 +22,7 @@ import type { AppStackScreenProps } from '@/navigation/types';
 
 interface PickedImage {
   uri: string;
+  base64?: string;
   name?: string;
   type?: string;
 }
@@ -28,6 +30,7 @@ interface PickedImage {
 export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
   const { user, signOut } = useAuth();
   const [image, setImage] = useState<PickedImage | null>(null);
+  const [assetName, setAssetName] = useState('');
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [sub, setSub] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,16 +55,18 @@ export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
     }
 
     const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.8 })
+      ? await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true })
       : await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           quality: 0.8,
+          base64: true,
         });
 
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
     setImage({
       uri: asset.uri,
+      base64: asset.base64 ?? undefined,
       name: asset.fileName ?? 'chart.jpg',
       type: asset.mimeType ?? 'image/jpeg',
     });
@@ -74,7 +79,11 @@ export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.analysis.analyze(image);
+      const result = await api.analysis.analyze(
+        image,
+        assetName.trim() || 'chart',
+        'crypto',
+      );
       setAnalysis(result);
       loadStatus();
     } catch (e) {
@@ -150,6 +159,16 @@ export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
         />
       </View>
 
+      <TextInput
+        style={styles.assetInput}
+        placeholder="Asset name (e.g. BTC, AAPL)"
+        placeholderTextColor={colors.textMuted}
+        value={assetName}
+        onChangeText={setAssetName}
+        autoCapitalize="characters"
+        returnKeyType="done"
+      />
+
       <Button
         label="Analyze chart"
         onPress={runAnalysis}
@@ -201,6 +220,16 @@ const styles = StyleSheet.create({
   preview: { width: '100%', height: '100%' },
   pickRow: { flexDirection: 'row', gap: 12 },
   flexBtn: { flex: 1 },
+  assetInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.text,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
   error: { color: colors.danger, fontSize: 14 },
   loadingBox: { alignItems: 'center', gap: 10, paddingVertical: 16 },
   loadingText: { color: colors.textMuted },
