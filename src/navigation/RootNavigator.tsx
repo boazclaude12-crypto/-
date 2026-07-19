@@ -15,6 +15,8 @@ import { LessonsScreen } from '@/screens/LessonsScreen';
 import { LessonDetailScreen } from '@/screens/LessonDetailScreen';
 import { LiveChartScreen } from '@/screens/LiveChartScreen';
 import { SubscriptionScreen } from '@/screens/SubscriptionScreen';
+import { CalculatorScreen } from '@/screens/CalculatorScreen';
+import { ProfileScreen } from '@/screens/ProfileScreen';
 import { colors } from '@/theme/colors';
 import type { AppStackParamList, AuthStackParamList } from './types';
 
@@ -101,6 +103,16 @@ function AppFlow() {
         name="Subscription"
         component={SubscriptionScreen}
         options={{ title: 'Plans' }}
+      />
+      <AppStack.Screen
+        name="Calculator"
+        component={CalculatorScreen}
+        options={{ title: 'P&L Calculator' }}
+      />
+      <AppStack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ title: 'Profile' }}
       />
     </AppStack.Navigator>
   );

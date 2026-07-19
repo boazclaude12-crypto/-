@@ -18,6 +18,8 @@ export type AppStackParamList = {
   LessonDetail: { id: string };
   LiveChart: undefined;
   Subscription: undefined;
+  Calculator: undefined;
+  Profile: undefined;
 };
 
 export type AuthStackScreenProps<T extends keyof AuthStackParamList> = NativeStackScreenProps<

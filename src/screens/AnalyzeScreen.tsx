@@ -119,6 +119,8 @@ export function AnalyzeScreen({ navigation }: AppStackScreenProps<'Analyze'>) {
         <Chip label="Learn" active={false} onPress={() => navigation.navigate('Lessons')} />
         <Chip label="Live Charts" active={false} onPress={() => navigation.navigate('LiveChart')} />
         <Chip label="Plans" active={false} onPress={() => navigation.navigate('Subscription')} />
+        <Chip label="Calculator" active={false} onPress={() => navigation.navigate('Calculator')} />
+        <Chip label="Profile" active={false} onPress={() => navigation.navigate('Profile')} />
       </View>
 
       {sub && (
