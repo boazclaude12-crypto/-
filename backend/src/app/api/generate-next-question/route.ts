@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.NET_PUBLIC_SITE_URL_OPENAI_API_KEY
-});
-
 export async function POST(req: Request) {
+  const openai = new OpenAI({
+    apiKey: process.env.NET_PUBLIC_SITE_URL_OPENAI_API_KEY,
+  });
   try {
     const { previousAnswers, questionNumber, reason } = await req.json();
 
