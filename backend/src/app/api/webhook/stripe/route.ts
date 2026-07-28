@@ -4,9 +4,11 @@ import { headers } from 'next/headers';
 import { createClient } from '../../../../../lib/supabase/server';
 import supabaseAdmin from '../../../../../lib/supabase/supabaseAdmin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
-});
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2025-02-24.acacia',
+  });
+}
 
 async function findUserByEmail(customerEmail: string): Promise<any> {
   // Get user from Supabase Auth with pagination
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     let event: Stripe.Event;
     try {
       console.log('🔍 Verifying webhook signature...');
-      event = stripe.webhooks.constructEvent(
+      event = getStripe().webhooks.constructEvent(
         body,
         signature,
         process.env.STRIPE_WEBHOOK_SECRET!
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
 
         console.log('👤 Fetching customer details from Stripe...');
         const customerId = session.customer as string;
-        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+        const customer = await getStripe().customers.retrieve(customerId) as Stripe.Customer;
         console.log('✅ Customer details retrieved:', {
           customer_id: customerId,
           customer_email: customer.email,
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
         const subscriptionId = session.subscription as string;
         console.log('📝 Subscription ID:', subscriptionId);
         
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
         console.log('✅ Subscription retrieved:', subscription.id);
         
         const priceId = subscription.items.data[0]?.price.id;
@@ -160,7 +162,7 @@ export async function POST(request: NextRequest) {
         
         console.log('👤 Fetching customer details...');
         console.log('🔑 Customer ID:', customerId);
-        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+        const customer = await getStripe().customers.retrieve(customerId) as Stripe.Customer;
         console.log('✅ Customer details retrieved');
         
         const customerEmail = customer.email;
@@ -221,7 +223,7 @@ export async function POST(request: NextRequest) {
         const customerId = subscription.customer as string;
 
         console.log('👤 Fetching customer details...');
-        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+        const customer = await getStripe().customers.retrieve(customerId) as Stripe.Customer;
         const customerEmail = customer.email;
         console.log('📧 Customer email:', customerEmail);
 
@@ -263,7 +265,7 @@ export async function POST(request: NextRequest) {
         const customerId = invoice.customer as string;
 
         console.log('👤 Fetching customer details...');
-        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+        const customer = await getStripe().customers.retrieve(customerId) as Stripe.Customer;
         const customerEmail = customer.email;
         console.log('📧 Customer email:', customerEmail);
 
