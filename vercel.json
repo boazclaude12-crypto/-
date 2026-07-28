@@ -1,6 +1,14 @@
 {
-  "buildCommand": "cd backend && npm run build",
-  "outputDirectory": "backend/.next",
-  "installCommand": "cd backend && npm install",
-  "framework": "nextjs"
+  "builds": [
+    {
+      "src": "backend/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "backend/$1"
+    }
+  ]
 }
