@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // PUT endpoint to update user details
 export async function PUT(request: NextRequest) {
@@ -47,7 +49,7 @@ export async function PUT(request: NextRequest) {
     } = userData;
 
     // Update user profile in Supabase
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('user_profiles')
       .update({
         name,
