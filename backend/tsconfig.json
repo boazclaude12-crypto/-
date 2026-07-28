@@ -19,7 +19,10 @@
     "incremental": true,
     "paths": {
       "@/*": [
-        "./app/*"
+        "./src/*"
+      ],
+      "@lib/*": [
+        "./lib/*"
       ]
     },
     "plugins": [

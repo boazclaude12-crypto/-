@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getBearerToken, createClientFromToken } from '@/../../lib/supabase/bearer';
+import { getBearerToken, createClientFromToken } from '@lib/supabase/bearer';
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const token = getBearerToken(request);
