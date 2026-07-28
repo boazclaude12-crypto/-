@@ -16,24 +16,22 @@ export async function POST(request: Request) {
     if (!user)
       return NextResponse.json({ error: "unauthorized", message: "Unauthorized" }, { status: 401 });
 
-    // Fetch user profile and plan
+    // Fetch user profile and plan (free tier fallback when no plan_id)
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("plan_id")
       .eq("user_id", user.id)
       .single();
 
-    if (!profile?.plan_id)
-      return NextResponse.json({ error: "no_subscription", message: "No subscription found" }, { status: 403 });
-
-    const { data: plan } = await supabase
-      .from("plans")
-      .select("daily_limit")
-      .eq("id", profile.plan_id)
-      .single();
-
-    if (!plan)
-      return NextResponse.json({ error: "plan_not_found", message: "Plan not found" }, { status: 403 });
+    let dailyLimit = 3; // free tier default
+    if (profile?.plan_id) {
+      const { data: plan } = await supabase
+        .from("plans")
+        .select("daily_limit")
+        .eq("id", profile.plan_id)
+        .single();
+      if (plan) dailyLimit = plan.daily_limit;
+    }
 
     // Check daily request limit (Israel timezone)
     const now = new Date();
@@ -42,14 +40,14 @@ export async function POST(request: Request) {
 
     const { data: recentRequests } = await supabase
       .from("user_requests")
-      .select("id, created_at")
+      .select("id")
       .eq("user_id", user.id)
       .gte("created_at", israelTime.toISOString());
 
-    if (recentRequests && recentRequests.length >= plan.daily_limit) {
+    if (recentRequests && recentRequests.length >= dailyLimit) {
       return NextResponse.json(
         { error: "limit_reached", message: "Daily limit reached, try again tomorrow" },
-        { status: 403 }
+        { status: 429 }
       );
     }
 
@@ -108,11 +106,19 @@ export async function POST(request: Request) {
     });
     const run = await openai.beta.threads.runs.create(thread.id, { assistant_id: assistantId });
 
+    const POLL_TIMEOUT_MS = 60_000;
+    const pollStart = Date.now();
     let done = false;
     while (!done) {
-      const status = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      if (status.status === "completed") done = true;
-      else await new Promise(r => setTimeout(r, 500));
+      if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+        await openai.beta.threads.runs.cancel(thread.id, run.id).catch(() => {});
+        throw new Error("OpenAI analysis timed out");
+      }
+      const runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      if (runStatus.status === "completed") done = true;
+      else if (["failed", "cancelled", "expired"].includes(runStatus.status)) {
+        throw new Error(`OpenAI run ${runStatus.status}`);
+      } else await new Promise(r => setTimeout(r, 500));
     }
 
     const messages = await openai.beta.threads.messages.list(thread.id);

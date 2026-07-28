@@ -7,6 +7,10 @@ const COINGECKO_IDS: Record<string, string> = {
   BNBUSDT: 'binancecoin',
   XRPUSDT: 'ripple',
   ADAUSDT: 'cardano',
+  DOGEUSDT: 'dogecoin',
+  AVAXUSDT: 'avalanche-2',
+  LINKUSDT: 'chainlink',
+  DOTUSDT: 'polkadot',
 };
 
 const RANGE_DAYS: Record<string, string> = {
