@@ -5,9 +5,6 @@ import { createClient } from '../../../../lib/supabase/server';
 import { clusterApiUrl, Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAccount, TOKEN_PROGRAM_ID, getMint } from "@solana/spl-token";
 
-if (!process.env.HELIUS_RPC_URL) {
-  throw new Error("HELIUS_RPC_URL environment variable is not set");
-}
 
 async function getTokenInfo(tokenAddresses: string[]) {
   try {
