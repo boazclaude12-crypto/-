@@ -473,6 +473,10 @@ function Home() {
 
   return (
     <div className={`min-h-screen bg-gray-50 ${heebo.className}`}>
+      {/* Deploy-check banner — remove after confirming Vercel picks up changes */}
+      <div className="fixed top-0 left-0 right-0 z-[999] bg-amber-500 text-white text-center text-xs py-1 font-bold">
+        ✅ גרסה מעודכנת — אשף המסחר v2
+      </div>
       {/* Header */}
       <header className={`fixed w-full bg-white shadow-sm z-50 border-b border-gray-200 ${rubik.className}`}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
