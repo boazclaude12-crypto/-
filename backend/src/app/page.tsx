@@ -770,6 +770,8 @@ function Home() {
               { icon: <Shield className="h-8 w-8" />, title: 'סטופ-לוס וטייק-פרופיט חכמים', desc: 'מערכת אוטומטית לחישוב רמות סטופ-לוס וטייק-פרופיט אידיאליות לכל עסקה', badge: 'ניהול סיכונים' },
               { icon: <TrendingUp className="h-8 w-8" />, title: 'זיהוי מגמות ורמות קריטיות', desc: 'זיהוי רמות תמיכה והתנגדות, איתור מגמות בשלבים מוקדמים לפני השוק', badge: 'התראות אמת' },
               { icon: <BarChart3 className="h-8 w-8" />, title: 'אנליזה לכל סוגי הנכסים', desc: 'ניתוח מקיף למניות, קריפטו, סחורות, פורקס ועוד עם התאמה אישית', badge: '100+ נכסים' },
+              { icon: <Activity className="h-8 w-8" />, title: 'מעקב וסטטיסטיקת ביצועים', desc: 'יומן עסקאות עם רווח/הפסד, אחוז הצלחה, יחס סיכון/סיכוי ועקומת הון', badge: 'חדש!' },
+              { icon: <DollarSign className="h-8 w-8" />, title: 'מחשבון רווח/הפסד', desc: 'חשב מראש את גודל הפוזיציה, הסיכון והתשואה הצפויה לכל עסקה', badge: 'כלי מסחר' },
             ].map(({ icon, title, desc, badge }, i) => (
               <Reveal key={title} delay={i * 90} className="h-full">
               <div className="rounded-2xl p-6 text-right h-full transition-transform hover:-translate-y-1" style={{ background: '#fff', border: '1px solid #eee', boxShadow: '0 4px 20px #0002' }}>

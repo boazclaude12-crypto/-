@@ -100,6 +100,11 @@ export default function Header() {
               <span className="relative after:absolute after:bottom-0 after:left-0 after:bg-amber-600 after:h-0.5 after:w-0 group-hover:after:w-full after:transition-all after:duration-300"></span>
             </Link>
             
+            <Link href="/stats" title="סטטיסטיקה ומעקב עסקאות" className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 hover:shadow-md hover:scale-105 group transition-all duration-200">
+              <BarChart3 className="h-5 w-5 group-hover:animate-pulse" />
+              <span className="relative after:absolute after:bottom-0 after:left-0 after:bg-amber-600 after:h-0.5 after:w-0 group-hover:after:w-full after:transition-all after:duration-300"></span>
+            </Link>
+
             <a href="/profile" className="text-gray-600 hover:text-gray-900">
               <User className="h-5 w-5" />
             </a>
@@ -144,7 +149,18 @@ export default function Header() {
               <span className="font-medium relative z-10">מחשבון</span>
               <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">✨</span>
             </Link>
-            
+
+            <Link
+              href="/stats"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-all w-full relative overflow-hidden group"
+            >
+              <span className="absolute inset-0 bg-gradient-to-r from-amber-200/50 to-amber-100/30 w-full transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500"></span>
+              <BarChart3 className="h-5 w-5 relative z-10" />
+              <span className="font-medium relative z-10">סטטיסטיקה</span>
+              <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">✨</span>
+            </Link>
+
             <div className="flex justify-between pt-2 border-t">
               <a 
                 href="/profile" 
