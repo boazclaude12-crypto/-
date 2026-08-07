@@ -10,6 +10,15 @@ interface AuthModalProps {
   initialMode?: 'login' | 'signup';
 }
 
+/**
+ * Where Supabase should send the user back to. The browser's own origin is the
+ * reliable source here: it is correct on localhost, on preview deploys and in
+ * production, and it does not silently become the string "undefined" when
+ * NEXT_PUBLIC_SITE_URL is missing from the environment.
+ */
+const siteOrigin = () =>
+  typeof window !== "undefined" ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL ?? "");
+
 export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
   const supabase = createClient();
   const router = useRouter();
@@ -69,7 +78,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         email,
         password,
         options: { 
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`, 
+          emailRedirectTo: `${siteOrigin()}/dashboard`,
           data: {
             full_name: name,
             avatar_url: `https://avatar.iran.liara.run/username?username=${name}`
@@ -90,11 +99,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({ 
-      provider: "google", 
-      options: { 
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-      } 
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${siteOrigin()}/auth/callback`,
+      }
     });
     if (error) setError(error.message);
   };
