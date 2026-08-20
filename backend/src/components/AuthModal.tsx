@@ -28,6 +28,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Update mode if initialMode prop changes
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setNotice(null);
 
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -84,15 +86,26 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             avatar_url: `https://avatar.iran.liara.run/username?username=${name}`
           }
         },
-      });   
-      if(data) router.push("/dashboard");
+      });
+
+      // `data` is an object even when the signup failed, so it cannot stand in
+      // for success. Routing on it sent failed signups to /dashboard, where the
+      // middleware bounced them straight back and the real error was never seen.
       if (error) {
-        if(error.message.startsWith("Password should")) {
+        if (error.message.startsWith("Password should")) {
           setError("הסיסמא שלך צריכה להכיל לפחות 6 תווים");
+        } else if (/already registered|already been registered/i.test(error.message)) {
+          setError("המייל הזה כבר רשום. נסה להתחבר במקום להירשם.");
         } else {
           setError(error.message);
         }
-      } else router.push("/dashboard");
+      } else if (!data.session) {
+        // Signup succeeded but the project requires email confirmation, so there
+        // is no session yet and /dashboard would reject them.
+        setNotice("נשלח אליך מייל אישור. יש ללחוץ על הקישור שבו כדי להשלים את ההרשמה.");
+      } else {
+        router.push("/dashboard");
+      }
     }
 
     setLoading(false);
@@ -165,6 +178,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         </p>
 
         {error && <p className="text-red-500 text-center mb-4 bg-red-50 py-2 px-3 rounded-lg">{error}</p>}
+        {notice && <p className="text-green-700 text-center mb-4 bg-green-50 py-2 px-3 rounded-lg">{notice}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {!isLogin && (
