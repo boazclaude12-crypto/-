@@ -40,7 +40,9 @@ export default async function HealthPage() {
   // A misconfigured or unreachable Supabase makes each query hang until its own
   // timeout. Serially that exceeds the hosting function limit and this page 504s
   // exactly when it is most needed, so cap every probe and run them together.
-  const withTimeout = <T,>(p: PromiseLike<T>, ms = 3000): Promise<T | { timedOut: true }> =>
+  // 6s: generous enough for a cold function reaching a distant region, still
+  // comfortably inside the hosting function limit even if every probe stalls.
+  const withTimeout = <T,>(p: PromiseLike<T>, ms = 6000): Promise<T | { timedOut: true }> =>
     Promise.race([
       Promise.resolve(p),
       new Promise<{ timedOut: true }>(resolve => setTimeout(() => resolve({ timedOut: true }), ms)),
