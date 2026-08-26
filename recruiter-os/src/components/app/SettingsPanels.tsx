@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge, Button, Card, Field, Input, Select } from '../ui';
+import { Badge, Button, Card, Checkbox, Field, Input, Select, cx } from '../ui';
+import { ConfirmDialog } from '../ui/Modal';
 import { Icon } from '../ui/icons';
 import { useToast } from '../ui/Toast';
 import { api, errorMessage } from '@/lib/client/api';
@@ -19,6 +20,7 @@ export interface StageView {
 const COLORS = [
   { value: 'slate', label: 'אפור' },
   { value: 'sky', label: 'תכלת' },
+  { value: 'cyan', label: 'טורקיז' },
   { value: 'indigo', label: 'כחול' },
   { value: 'violet', label: 'סגול' },
   { value: 'amber', label: 'כתום' },
@@ -26,10 +28,15 @@ const COLORS = [
   { value: 'rose', label: 'אדום' },
 ];
 
-/** Stages are shared by candidate status and the kanban columns, so adding one affects both. */
+/**
+ * Stages are shared by candidate status and the kanban columns, so every edit here
+ * affects both. Deleting is refused server-side while records still sit in the stage.
+ */
 export function StageEditor({ stages }: { stages: StageView[] }) {
   const router = useRouter();
   const toast = useToast();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<StageView | null>(null);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState({ key: '', label: '', color: 'sky', in_pipeline: true });
@@ -58,22 +65,77 @@ export function StageEditor({ stages }: { stages: StageView[] }) {
     }
   }
 
+  async function save(stage: StageView, values: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/stages/${stage.id}`, values);
+      toast.success('השלב עודכן');
+      setEditingId(null);
+      router.refresh();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await api.del(`/api/stages/${deleting.id}`);
+      toast.success('השלב נמחק');
+      setDeleting(null);
+      router.refresh();
+    } catch (error) {
+      toast.error(errorMessage(error));
+      setDeleting(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
-      <ol className="flex flex-wrap items-center gap-1.5">
+      <ul className="space-y-1.5">
         {stages.map((stage, index) => (
-          <li key={stage.id} className="flex items-center gap-1.5">
-            <Badge tone={stage.color}>
-              {stage.label}
-              {!stage.in_pipeline && <span className="opacity-60"> (מחוץ לקנבן)</span>}
-            </Badge>
-            {index < stages.length - 1 && <span className="text-xs text-faint">←</span>}
+          <li key={stage.id} className="rounded-lg border border-line px-3 py-2">
+            {editingId === stage.id ? (
+              <StageRowEditor
+                stage={stage}
+                busy={busy}
+                onCancel={() => setEditingId(null)}
+                onSave={(values) => save(stage, values)}
+              />
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="num w-5 shrink-0 text-xs text-faint">{index + 1}</span>
+                <Badge tone={stage.color}>{stage.label}</Badge>
+                <code className="text-xs text-faint" dir="ltr">{stage.key}</code>
+                {!stage.in_pipeline && <span className="text-xs text-faint">מחוץ לקנבן</span>}
+                <span className="flex-1" />
+                <button
+                  onClick={() => setEditingId(stage.id)}
+                  className="rounded-md p-1.5 text-muted transition hover:bg-line/50 hover:text-ink"
+                  aria-label={`עריכת ${stage.label}`}
+                >
+                  <Icon.Edit size={15} />
+                </button>
+                <button
+                  onClick={() => setDeleting(stage)}
+                  className="rounded-md p-1.5 text-muted transition hover:bg-danger/10 hover:text-danger"
+                  aria-label={`מחיקת ${stage.label}`}
+                >
+                  <Icon.Trash size={15} />
+                </button>
+              </div>
+            )}
           </li>
         ))}
-      </ol>
+      </ul>
 
       {adding ? (
-        <div className="grid gap-2 rounded-lg border border-line p-3 sm:grid-cols-4">
+        <div className="grid gap-2 rounded-lg border border-brand/40 bg-brand-soft/40 p-3 sm:grid-cols-4">
           <Field label="שם השלב">
             <Input
               value={draft.label}
@@ -106,6 +168,64 @@ export function StageEditor({ stages }: { stages: StageView[] }) {
           הוספת שלב
         </Button>
       )}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="מחיקת שלב"
+        message={`למחוק את השלב "${deleting?.label}"? אם יש מועמדים או תהליכים בשלב הזה, המחיקה תיחסם.`}
+        confirmLabel="מחיקה"
+        busy={busy}
+        onConfirm={remove}
+        onClose={() => setDeleting(null)}
+      />
+    </div>
+  );
+}
+
+function StageRowEditor({
+  stage,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  stage: StageView;
+  busy: boolean;
+  onSave: (values: Record<string, unknown>) => void;
+  onCancel: () => void;
+}) {
+  const [label, setLabel] = useState(stage.label);
+  const [color, setColor] = useState(stage.color);
+  const [inPipeline, setInPipeline] = useState(stage.in_pipeline);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        className="h-9 max-w-[12rem] flex-1"
+        value={label}
+        onChange={(event) => setLabel(event.target.value)}
+        aria-label="שם השלב"
+      />
+      <Select
+        className="h-9 w-auto"
+        options={COLORS}
+        value={color}
+        onChange={(event) => setColor(event.target.value)}
+        aria-label="צבע"
+      />
+      <Checkbox
+        label="בקנבן"
+        checked={inPipeline}
+        onChange={(event) => setInPipeline(event.target.checked)}
+      />
+      <span className="flex-1" />
+      <Button
+        size="sm"
+        loading={busy}
+        onClick={() => onSave({ label, color, in_pipeline: inPipeline })}
+      >
+        שמירה
+      </Button>
+      <Button size="sm" variant="secondary" onClick={onCancel}>ביטול</Button>
     </div>
   );
 }
@@ -144,7 +264,7 @@ export function DemoDataCard({ hasData }: { hasData: boolean }) {
             טעינה של חשבון הדגמה מלא: 10 לקוחות, 30 משרות, 100 מועמדים, ראיונות, השמות, תשלומים ומשימות —
             עם קשרים אמיתיים ביניהם, כך שכל מסך מציג נתונים שאפשר לעבוד איתם.
           </p>
-          <Button className="mt-3" loading={busy} onClick={seed} icon={<Icon.Sparkles size={16} />}>
+          <Button className={cx('mt-3')} loading={busy} onClick={seed} icon={<Icon.Sparkles size={16} />}>
             טעינת נתוני דמו
           </Button>
         </>

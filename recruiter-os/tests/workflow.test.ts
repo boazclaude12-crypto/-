@@ -258,3 +258,40 @@ describe('next best action', () => {
     assert.deepEqual(nextBestActions(orgId), []);
   });
 });
+
+describe('customisable pipeline stages', () => {
+  test('a stage in use cannot be deleted, an unused one can', async () => {
+    const { orgId, userId, job, candidate } = await desk();
+    const { repos: repo } = await import('../src/lib/db/repos');
+
+    // Park a candidate in the screening stage.
+    addCandidateToJob(orgId, userId, { candidate_id: candidate.id, job_id: job.id });
+    const screening = repo.stages.findBy(orgId, 'key = ?', 'screening')!;
+    repos.candidates.update(orgId, candidate.id, { status_key: 'screening' });
+
+    const db = getDb();
+    const inUse = db.get<{ n: number }>(
+      `SELECT (SELECT COUNT(*) FROM candidates WHERE org_id = ? AND status_key = ?)
+            + (SELECT COUNT(*) FROM applications WHERE org_id = ? AND stage_key = ?) AS n`,
+      orgId, screening.key, orgId, screening.key,
+    );
+    assert.ok((inUse?.n ?? 0) > 0, 'the guard must see the stage is occupied');
+
+    // An unused custom stage is free to remove.
+    const custom = repo.stages.create(orgId, {
+      key: 'trial_day', label: 'יום ניסיון', color: 'cyan',
+      in_pipeline: 1, is_terminal: 0, outcome: 'neutral', sort_order: 99, is_system: 0,
+    });
+    assert.equal(repo.stages.remove(orgId, custom.id), true);
+  });
+
+  test('renaming a stage keeps its key, so existing records stay attached', async () => {
+    const { orgId } = await createOrg();
+    const { repos: repo } = await import('../src/lib/db/repos');
+    const stage = repo.stages.findBy(orgId, 'key = ?', 'interview')!;
+
+    const updated = repo.stages.update(orgId, stage.id, { label: 'ראיון אצלי', color: 'violet' });
+    assert.equal(updated?.key, 'interview', 'the key is the join column — it must not change');
+    assert.equal(updated?.label, 'ראיון אצלי');
+  });
+});

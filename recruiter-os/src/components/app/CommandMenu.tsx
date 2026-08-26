@@ -28,6 +28,7 @@ const NAVIGATION = [
   { label: 'לקוחות', href: '/clients' },
   { label: 'פייפליין', href: '/pipeline' },
   { label: 'משימות', href: '/tasks' },
+  { label: 'תקשורת', href: '/messages' },
   { label: 'כספים', href: '/money' },
   { label: 'נתונים', href: '/analytics' },
   { label: 'עוזר AI', href: '/assistant' },

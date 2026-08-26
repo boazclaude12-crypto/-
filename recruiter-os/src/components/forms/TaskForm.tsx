@@ -10,6 +10,7 @@ export interface TaskFormValues {
   title: string;
   details: string;
   due_at: string;
+  remind_at: string;
   priority: string;
   candidate_id: string;
   client_id: string;
@@ -43,6 +44,7 @@ export function TaskForm({
     title: '',
     details: '',
     due_at: defaultDue(),
+    remind_at: '',
     priority: 'normal',
     candidate_id: lockedContext?.candidateId ?? '',
     client_id: lockedContext?.clientId ?? '',
@@ -92,6 +94,7 @@ export function TaskForm({
         title: values.title.trim(),
         details: values.details.trim() || null,
         due_at: values.due_at ? new Date(values.due_at).toISOString() : null,
+        remind_at: values.remind_at ? new Date(values.remind_at).toISOString() : null,
         priority: values.priority,
         candidate_id: values.candidate_id || null,
         client_id: values.client_id || null,
@@ -121,12 +124,19 @@ export function TaskForm({
         />
       </Field>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Field label="תאריך ושעה">
           <Input
             type="datetime-local"
             value={values.due_at}
             onChange={(event) => set('due_at', event.target.value)}
+          />
+        </Field>
+        <Field label="תזכורת" hint="ריק = ללא תזכורת נפרדת">
+          <Input
+            type="datetime-local"
+            value={values.remind_at}
+            onChange={(event) => set('remind_at', event.target.value)}
           />
         </Field>
         <Field label="עדיפות">

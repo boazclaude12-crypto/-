@@ -23,6 +23,7 @@ const NAV = [
   { href: '/clients', label: 'לקוחות', icon: Icon.Building },
   { href: '/pipeline', label: 'פייפליין', icon: Icon.Board },
   { href: '/tasks', label: 'משימות', icon: Icon.CheckSquare },
+  { href: '/messages', label: 'תקשורת', icon: Icon.Chat },
   { href: '/money', label: 'כספים', icon: Icon.Money },
   { href: '/analytics', label: 'נתונים', icon: Icon.Chart },
   { href: '/assistant', label: 'עוזר AI', icon: Icon.Sparkles },
