@@ -24,9 +24,11 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/db ./db
 
 # Migrations run automatically on the first database connection.
+# No VOLUME instruction: Railway rejects Dockerfiles that declare one and wants the
+# mount configured on its side instead. Other hosts mount over this directory just
+# as happily, so creating it here is all that is needed anywhere.
 RUN mkdir -p /app/data && chown -R node:node /app/data
 USER node
-VOLUME ["/app/data"]
 EXPOSE 3000
 # No -p flag on purpose: `next start` binds to $PORT, so the host controls it.
 CMD ["npx", "next", "start"]
