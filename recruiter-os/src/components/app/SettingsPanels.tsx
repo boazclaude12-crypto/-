@@ -275,8 +275,9 @@ export function DemoDataCard({ hasData }: { hasData: boolean }) {
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 
 /**
@@ -297,12 +298,24 @@ export function DataSafetyCard({
     databaseBytes: number;
     uploadBytes: number;
     uploadCount: number;
+    totalBytes: number | null;
+    freeBytes: number | null;
   };
 }) {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   // Outside a container the data sits on an ordinary disk and nothing is at risk.
   const atRisk = health.containerised && !health.persistent;
+
+  const used = health.totalBytes !== null && health.freeBytes !== null
+    ? health.totalBytes - health.freeBytes
+    : null;
+  const usedRatio = used !== null && health.totalBytes ? used / health.totalBytes : null;
+  // A full volume stops SQLite writing, so the warning has to arrive with room to act.
+  const spaceTone = usedRatio === null ? null : usedRatio >= 0.9 ? 'danger' : usedRatio >= 0.75 ? 'warn' : 'ok';
+  // Roughly what a CV costs on disk, used only to turn free space into a number that
+  // means something to a recruiter.
+  const cvsLeft = health.freeBytes !== null ? Math.floor(health.freeBytes / 300_000) : null;
 
   async function download() {
     setBusy(true);
@@ -365,6 +378,38 @@ export function DataSafetyCard({
           </dd>
         </div>
       </dl>
+
+      {usedRatio !== null && health.totalBytes !== null && (
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-faint">מקום בדיסק</span>
+            <span className="num text-ink">
+              {formatBytes(used!)} מתוך {formatBytes(health.totalBytes)}
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line">
+            <div
+              className={cx(
+                'h-full rounded-full transition-all',
+                spaceTone === 'danger' ? 'bg-danger' : spaceTone === 'warn' ? 'bg-warn' : 'bg-ok',
+              )}
+              style={{ width: `${Math.min(100, Math.max(2, usedRatio * 100))}%` }}
+            />
+          </div>
+          <p
+            className={cx(
+              'mt-1.5 text-xs',
+              spaceTone === 'danger' ? 'text-danger' : spaceTone === 'warn' ? 'text-warn' : 'text-faint',
+            )}
+          >
+            {spaceTone === 'danger'
+              ? 'הדיסק כמעט מלא. כשייגמר המקום המערכת תפסיק לשמור — הגדל את ה-Volume או מחק קבצים ישנים.'
+              : cvsLeft !== null
+                ? `מקום לעוד כ-${cvsLeft.toLocaleString('he-IL')} קורות חיים`
+                : ''}
+          </p>
+        </div>
+      )}
 
       <Button
         variant="secondary"

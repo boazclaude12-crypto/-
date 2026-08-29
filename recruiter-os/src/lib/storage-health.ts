@@ -12,6 +12,9 @@ export interface StorageHealth {
   databaseBytes: number;
   uploadBytes: number;
   uploadCount: number;
+  /** Capacity of the volume, and what is left. Null when the filesystem cannot say. */
+  totalBytes: number | null;
+  freeBytes: number | null;
 }
 
 /**
@@ -60,6 +63,22 @@ function directorySize(dir: string): { bytes: number; files: number } {
   return { bytes, files };
 }
 
+/**
+ * Free space on the volume holding `dir`.
+ *
+ * Managed volumes start small — a starter plan may allow only a few hundred megabytes —
+ * and CVs accumulate quietly. SQLite stops accepting writes when the disk fills, so the
+ * number is worth showing while there is still time to act on it.
+ */
+function capacityOf(dir: string): { total: number | null; free: number | null } {
+  try {
+    const stats = fs.statfsSync(dir);
+    return { total: stats.blocks * stats.bsize, free: stats.bavail * stats.bsize };
+  } catch {
+    return { total: null, free: null };
+  }
+}
+
 function sizeOf(file: string): number {
   try {
     return fs.statSync(file).size;
@@ -72,6 +91,7 @@ export function storageHealth(): StorageHealth {
   const databaseFile = path.resolve(env.databaseFile);
   const dataDir = path.dirname(databaseFile);
   const uploads = directorySize(env.uploadDir);
+  const capacity = capacityOf(dataDir);
 
   return {
     dataDir,
@@ -83,5 +103,7 @@ export function storageHealth(): StorageHealth {
       sizeOf(databaseFile) + sizeOf(`${databaseFile}-wal`) + sizeOf(`${databaseFile}-shm`),
     uploadBytes: uploads.bytes,
     uploadCount: uploads.files,
+    totalBytes: capacity.total,
+    freeBytes: capacity.free,
   };
 }

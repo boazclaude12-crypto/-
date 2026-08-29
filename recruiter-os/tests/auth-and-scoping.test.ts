@@ -207,7 +207,7 @@ describe('data export', () => {
   test('one org cannot read another org rows through a table-wide query', async () => {
     const a = await createOrg();
     const b = await createOrg();
-    createCandidate(a.orgId, a.userId, { first_name: 'שייך', last_name: 'לארגון א' });
+    createCandidate(a.orgId, a.userId, { first_name: 'שייך', last_name: 'לארגון א' } as never);
 
     const { getDb } = await import('../src/lib/db/index');
     const db = getDb();
