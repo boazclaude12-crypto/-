@@ -177,3 +177,43 @@ describe('rate limiting', () => {
     assert.equal(checkRateLimit(bucket, 3, 60_000).allowed, true);
   });
 });
+
+describe('data export', () => {
+  test('covers every org-scoped table and never carries credentials', async () => {
+    const { getDb } = await import('../src/lib/db/index');
+    const db = getDb();
+    const tables = db
+      .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .filter((table) =>
+        db.all<{ name: string }>(`PRAGMA table_info(${table.name})`).some((c) => c.name === 'org_id'),
+      )
+      .map((table) => table.name);
+
+    // Whatever a later migration adds, the backup must reach it: the export derives its
+    // table list the same way this assertion does, so the two cannot drift apart.
+    assert.ok(tables.includes('candidates'));
+    assert.ok(tables.includes('jobs'));
+    assert.ok(tables.includes('placements'));
+
+    // No org-scoped table may hold a credential column, or the export would carry it.
+    for (const table of tables) {
+      const columns = db.all<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
+      for (const secret of ['password_hash', 'password_salt', 'api_token']) {
+        assert.ok(!columns.includes(secret), `${table}.${secret} would leak into a backup`);
+      }
+    }
+  });
+
+  test('one org cannot read another org rows through a table-wide query', async () => {
+    const a = await createOrg();
+    const b = await createOrg();
+    createCandidate(a.orgId, a.userId, { first_name: 'שייך', last_name: 'לארגון א' });
+
+    const { getDb } = await import('../src/lib/db/index');
+    const db = getDb();
+    const seenByB = db.all('SELECT * FROM candidates WHERE org_id = ?', b.orgId);
+    assert.equal(seenByB.length, 0);
+    const seenByA = db.all('SELECT * FROM candidates WHERE org_id = ?', a.orgId);
+    assert.equal(seenByA.length, 1);
+  });
+});

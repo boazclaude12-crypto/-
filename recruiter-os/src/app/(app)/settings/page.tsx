@@ -4,9 +4,10 @@ import { tagsWithCounts } from '@/lib/domain/tags';
 import { orgStats } from '@/lib/auth/service';
 import { aiStatus } from '@/lib/ai/index';
 import { integrationStatus } from '@/lib/integrations/index';
+import { storageHealth } from '@/lib/storage-health';
 import { Badge, Card } from '@/components/ui';
 import { Icon } from '@/components/ui/icons';
-import { StageEditor, DemoDataCard } from '@/components/app/SettingsPanels';
+import { StageEditor, DemoDataCard, DataSafetyCard } from '@/components/app/SettingsPanels';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'הגדרות — Recruiter OS' };
@@ -25,6 +26,7 @@ export default async function SettingsPage() {
   const tags = tagsWithCounts(auth.org.id);
   const ai = aiStatus();
   const integrations = integrationStatus();
+  const health = storageHealth();
 
   return (
     <div className="space-y-4">
@@ -95,6 +97,8 @@ export default async function SettingsPage() {
             בוואטסאפ בלחיצה. שכבת השירות מוכנה — חיבור ספק אמיתי דורש מפתחות בלבד.
           </p>
         </Card>
+
+        <DataSafetyCard health={health} />
 
         <DemoDataCard hasData={stats.candidates > 0 || stats.jobs > 0} />
       </div>

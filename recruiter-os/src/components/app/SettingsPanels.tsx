@@ -272,3 +272,113 @@ export function DemoDataCard({ hasData }: { hasData: boolean }) {
     </Card>
   );
 }
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * Says plainly whether this deployment keeps its data.
+ *
+ * A missing volume is invisible until the next deploy wipes everything, which is exactly
+ * the moment it is too late to find out. So the state is reported here, in the words that
+ * matter to the person using it, together with the one-line fix and a backup they can
+ * take right now regardless.
+ */
+export function DataSafetyCard({
+  health,
+}: {
+  health: {
+    dataDir: string;
+    persistent: boolean;
+    containerised: boolean;
+    databaseBytes: number;
+    uploadBytes: number;
+    uploadCount: number;
+  };
+}) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // Outside a container the data sits on an ordinary disk and nothing is at risk.
+  const atRisk = health.containerised && !health.persistent;
+
+  async function download() {
+    setBusy(true);
+    try {
+      const response = await fetch('/api/export', { credentials: 'same-origin' });
+      if (!response.ok) throw new Error('הייצוא נכשל');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `recruiter-os-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('הגיבוי ירד למחשב');
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="הנתונים שלי">
+      <div
+        className={cx(
+          'flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-sm',
+          atRisk ? 'bg-danger/10 text-danger' : 'bg-ok/10 text-ok',
+        )}
+      >
+        {atRisk ? <Icon.Alert size={16} className="mt-0.5 shrink-0" /> : <Icon.Check size={16} className="mt-0.5 shrink-0" />}
+        <div>
+          <p className="font-medium">
+            {atRisk ? 'הנתונים יימחקו בעדכון הבא' : 'הנתונים נשמרים'}
+          </p>
+          <p className="mt-0.5 opacity-90">
+            {atRisk
+              ? 'התיקייה שבה יושבים המסד וקורות החיים אינה דיסק קבוע. חבר Volume בשרת בנתיב שלמטה — פעולה חד-פעמית.'
+              : health.containerised
+                ? 'התיקייה מחוברת לדיסק קבוע ושורדת פריסות מחדש.'
+                : 'המערכת רצה מקומית, על דיסק רגיל.'}
+          </p>
+        </div>
+      </div>
+
+      <dl className="mt-3 space-y-2 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-faint">תיקיית הנתונים</dt>
+          <dd className="text-ink" dir="ltr">{health.dataDir}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-faint">גודל המסד</dt>
+          <dd className="num text-ink">{formatBytes(health.databaseBytes)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-faint">קבצי קורות חיים</dt>
+          <dd className="num text-ink">
+            {health.uploadCount} קבצים · {formatBytes(health.uploadBytes)}
+          </dd>
+        </div>
+      </dl>
+
+      <Button
+        variant="secondary"
+        className="mt-3"
+        loading={busy}
+        onClick={download}
+        icon={<Icon.Doc size={16} />}
+      >
+        הורדת גיבוי מלא
+      </Button>
+      <p className="mt-2 text-xs text-faint">
+        קובץ JSON אחד עם כל המועמדים, המשרות, הלקוחות והתהליכים. הקבצים המצורפים עצמם לא
+        כלולים — רק הטקסט שחולץ מהם.
+      </p>
+    </Card>
+  );
+}
