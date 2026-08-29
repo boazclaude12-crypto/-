@@ -86,6 +86,10 @@ export interface CandidateRow {
   availability: string | null;
   available_from: string | null;
   employment_type: string | null;
+  /** Commute this candidate accepts, in km. Null means "use the driving-based default". */
+  max_commute_km: number | null;
+  has_car: number;
+  willing_to_relocate: number;
   source: string | null;
   status_key: string;
   rating: number | null;
@@ -148,6 +152,8 @@ export interface JobRow {
   hours: string | null;
   work_days: string | null;
   employment_type: string | null;
+  /** onsite | hybrid | remote — decides whether distance constrains the match at all. */
+  work_mode: string;
   description: string | null;
   benefits: string | null;
   status: string;

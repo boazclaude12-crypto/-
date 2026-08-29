@@ -18,6 +18,9 @@ function candidate(overrides: Partial<MatchCandidate> = {}): MatchCandidate {
     availability: 'immediate',
     employment_type: 'full_time',
     education: 'תיכונית',
+    max_commute_km: null,
+    has_car: 0,
+    willing_to_relocate: 0,
     search_text: 'דני כהן נהג חלוקה חיפה רישיון c',
     attributes: [{ kind: 'license', value: 'רישיון C', value_norm: canonical('רישיון C') }],
     experience_titles: ['נהג חלוקה'],
@@ -36,6 +39,7 @@ function job(overrides: Partial<MatchJob> = {}): MatchJob {
     salary_period: 'month',
     employment_type: 'full_time',
     description: null,
+    work_mode: 'onsite',
     requirements: [
       { kind: 'license', value: 'רישיון C', value_norm: canonical('רישיון C'), is_required: 1, weight: 1 },
     ],
@@ -61,12 +65,13 @@ describe('matching engine', () => {
     assert.ok(result.gaps.some((gap) => gap.includes('רישיון C')), 'the missing licence must be named');
   });
 
-  test('distance lowers the score without eliminating the candidate', () => {
+  test('an unworkable commute is a blocker, not a deduction', () => {
     const near = scoreMatch(candidate(), job());
     const far = scoreMatch(candidate({ city: 'באר שבע', region: 'south' }), job());
-    assert.ok(far.score < near.score, 'a distant candidate must rank lower');
     assert.ok(far.distanceKm !== null && far.distanceKm > 100);
-    assert.ok(far.gaps.some((gap) => gap.includes('מרחק')));
+    // Not merely lower — low enough that the recruiter is not sent on this call.
+    assert.ok(near.score - far.score > 50, `${near.score} vs ${far.score}`);
+    assert.ok(far.gaps.some((gap) => gap.includes('ק"מ')));
   });
 
   test('salary expectations above the range are penalised and explained', () => {
@@ -120,5 +125,92 @@ describe('matching engine', () => {
     const result = scoreMatch(candidate(), job({ requirements: [] }));
     assert.ok(result.score > 0);
     assert.ok(result.gaps.some((gap) => gap.includes('לא הוגדרו דרישות')));
+  });
+});
+
+describe('commute', () => {
+  const perfect = (overrides = {}) => candidate(overrides);
+
+  test('a local candidate is unaffected', () => {
+    const result = scoreMatch(perfect(), job({ city: 'קריית אתא' }));
+    assert.equal(result.commute.status, 'comfortable');
+    assert.equal(result.commute.cap, null);
+    assert.equal(result.score, 100);
+  });
+
+  test('distance past the accepted commute caps the whole score', () => {
+    // Otherwise-perfect candidate: without the cap the score would still be in the 80s.
+    const result = scoreMatch(perfect(), job({ city: 'תל אביב', region: 'center' }));
+    assert.equal(result.commute.status, 'unrealistic');
+    assert.ok(result.commute.cap !== null && result.commute.cap < 40);
+    assert.ok(result.score <= result.commute.cap!, `${result.score} > ${result.commute.cap}`);
+    assert.ok(result.gaps.some((gap) => gap.includes('ק"מ')));
+  });
+
+  test('a car widens the default radius', () => {
+    const target = job({ city: 'נתניה', region: 'sharon' });
+    const without = scoreMatch(perfect({ has_car: 0 }), target).score;
+    const with_ = scoreMatch(perfect({ has_car: 1 }), target).score;
+    assert.ok(with_ > without, `${with_} should beat ${without}`);
+  });
+
+  test('a stated commute limit overrides the default', () => {
+    const target = job({ city: 'תל אביב', region: 'center' });
+    const result = scoreMatch(perfect({ has_car: 1, max_commute_km: 120 }), target);
+    assert.equal(result.commute.status, 'acceptable');
+    assert.equal(result.commute.cap, null);
+    assert.ok(result.score >= 90);
+  });
+
+  test('remote work removes distance from the equation', () => {
+    const result = scoreMatch(perfect(), job({ city: 'אילת', region: 'south', work_mode: 'remote' }));
+    assert.equal(result.commute.status, 'remote');
+    assert.equal(result.commute.cap, null);
+    assert.equal(result.score, 100);
+  });
+
+  test('hybrid work doubles the tolerated commute', () => {
+    const target = job({ city: 'נתניה', region: 'sharon' });
+    const onsite = scoreMatch(perfect(), { ...target, work_mode: 'onsite' }).score;
+    const hybrid = scoreMatch(perfect(), { ...target, work_mode: 'hybrid' }).score;
+    assert.ok(hybrid > onsite, `hybrid ${hybrid} should beat onsite ${onsite}`);
+  });
+
+  test('willingness to relocate lifts the cap', () => {
+    const target = job({ city: 'באר שבע', region: 'south' });
+    const staying = scoreMatch(perfect(), target).score;
+    const moving = scoreMatch(perfect({ willing_to_relocate: 1 }), target);
+    assert.equal(moving.commute.cap, null);
+    assert.ok(moving.score > staying);
+  });
+
+  test('an unknown city is never treated as far away', () => {
+    const result = scoreMatch(perfect({ city: 'יישוב שלא בגזטיר', region: null }), job({ city: 'תל אביב' }));
+    assert.equal(result.commute.status, 'unknown');
+    assert.equal(result.commute.cap, null);
+    assert.ok(result.score >= 70);
+  });
+
+  test('further away always ranks lower, even when both are out of range', () => {
+    const target = job({ city: 'תל אביב', region: 'center' });
+    const near = scoreMatch(perfect({ city: 'נתניה' }), target).score;
+    const mid = scoreMatch(perfect({ city: 'חיפה' }), target).score;
+    const far = scoreMatch(perfect({ city: 'אילת' }), target).score;
+    assert.ok(near > mid && mid > far, `expected ${near} > ${mid} > ${far}`);
+  });
+});
+
+describe('commute honesty', () => {
+  test('an assumed radius is never described as something the candidate said', () => {
+    const result = scoreMatch(candidate({ max_commute_km: null }), job({ city: 'תל אביב', region: 'center' }));
+    assert.equal(result.commute.toleranceStated, false);
+    assert.ok(!result.commute.note.includes('שהמועמד מוכן'), result.commute.note);
+    assert.ok(!result.commute.note.includes('ציין'), result.commute.note);
+  });
+
+  test('a stated radius is attributed to the candidate', () => {
+    const result = scoreMatch(candidate({ max_commute_km: 15 }), job({ city: 'תל אביב', region: 'center' }));
+    assert.equal(result.commute.toleranceStated, true);
+    assert.ok(result.commute.note.includes('שהמועמד מוכן'), result.commute.note);
   });
 });

@@ -17,6 +17,9 @@ export interface CandidateFormValues {
   email: string;
   city: string;
   region: string;
+  max_commute_km: string;
+  has_car: boolean;
+  willing_to_relocate: boolean;
   current_role: string;
   years_experience: string;
   education: string;
@@ -35,6 +38,7 @@ export interface CandidateFormValues {
 
 export const EMPTY_CANDIDATE: CandidateFormValues = {
   first_name: '', last_name: '', phone: '', whatsapp: '', email: '', city: '', region: '',
+  max_commute_km: '', has_car: false, willing_to_relocate: false,
   current_role: '', years_experience: '', education: '', current_salary: '', desired_salary: '',
   availability: '', employment_type: '', source: '', notes: '',
   attributes: [], experiences: [], tags: [],
@@ -50,6 +54,9 @@ function toPayload(values: CandidateFormValues) {
     email: values.email.trim() || null,
     city: values.city.trim() || null,
     region: values.region || null,
+    max_commute_km: number(values.max_commute_km),
+    has_car: values.has_car ? 1 : 0,
+    willing_to_relocate: values.willing_to_relocate ? 1 : 0,
     current_role: values.current_role.trim() || null,
     years_experience: number(values.years_experience),
     education: values.education.trim() || null,
@@ -145,6 +152,40 @@ export function CandidateForm({
         <Field label="תפקיד נוכחי">
           <Input value={values.current_role} onChange={(e) => set('current_role', e.target.value)} />
         </Field>
+      </div>
+
+      <div className="rounded-xl border border-line bg-canvas/50 p-3">
+        <p className="mb-2.5 flex items-center gap-1.5 text-sm font-medium text-ink">
+          <Icon.MapPin size={14} className="text-faint" />
+          נסיעה לעבודה
+          <span className="font-normal text-faint">— משפיע ישירות על ציון ההתאמה</span>
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label='עד כמה ק"מ מוכן לנסוע' hint="ריק = לפי רכב">
+            <Input
+              type="number"
+              min={0}
+              max={400}
+              value={values.max_commute_km}
+              onChange={(e) => set('max_commute_km', e.target.value)}
+              placeholder={values.has_car ? '40' : '20'}
+            />
+          </Field>
+          <div className="flex items-end pb-2">
+            <Checkbox
+              label="יש רכב"
+              checked={values.has_car}
+              onChange={(e) => set('has_car', e.target.checked)}
+            />
+          </div>
+          <div className="flex items-end pb-2">
+            <Checkbox
+              label="מוכן לעבור דירה"
+              checked={values.willing_to_relocate}
+              onChange={(e) => set('willing_to_relocate', e.target.checked)}
+            />
+          </div>
+        </div>
       </div>
 
       <button

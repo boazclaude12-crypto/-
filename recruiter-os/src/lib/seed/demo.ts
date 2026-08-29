@@ -176,6 +176,8 @@ export function seedDemoData(orgId: string, userId: string, options: SeedOptions
         hours: pick(['07:00–16:00', '06:00–15:00', 'משמרות', '08:00–17:00']),
         work_days: pick(['א׳–ה׳', 'א׳–ו׳', 'משמרות מתחלפות']),
         employment_type: pick(EMPLOYMENT),
+        // Most of this desk's work is on-site; a few roles allow hybrid.
+        work_mode: chance(0.12) ? 'hybrid' : 'onsite',
         description: `דרוש/ה ${profile.role} ל${client.name}. עבודה קבועה, תנאים טובים למתאימים.`,
         benefits: pick(['ארוחות, הסעות, קרן השתלמות', 'בונוסים חודשיים, ביטוח בריאות', 'רכב צמוד, טלפון']),
         status: isClosed ? 'closed' : pick(['open', 'open', 'sourcing', 'on_hold']),
@@ -260,6 +262,11 @@ export function seedDemoData(orgId: string, userId: string, options: SeedOptions
         desired_salary: currentSalary + between(500, 2500),
         availability: pick(AVAILABILITIES),
         employment_type: pick(EMPLOYMENT),
+        // Drivers have a licence and therefore a car; everyone else is mixed. Roughly a
+        // third state a commute limit explicitly, as they do in real intake calls.
+        has_car: profile.role.includes('נהג') || chance(0.45) ? 1 : 0,
+        max_commute_km: chance(0.35) ? pick([15, 20, 25, 30, 40, 50, 60, 80]) : null,
+        willing_to_relocate: chance(0.08) ? 1 : 0,
         source: pick(SOURCES),
         status_key: 'new',
         rating: chance(0.3) ? between(3, 5) : null,

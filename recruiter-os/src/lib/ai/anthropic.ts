@@ -8,8 +8,10 @@ const CV_SYSTEM = `אתה עוזר לרכז גיוס לקרוא קורות חי�
 החזר JSON בלבד, ללא טקסט נוסף וללא סימוני קוד, במבנה הבא:
 {"first_name":string|null,"last_name":string|null,"phone":string|null,"email":string|null,
  "city":string|null,"current_role":string|null,"years_experience":number|null,"education":string|null,
- "licenses":string[],"certifications":string[],"skills":string[],"languages":string[],
+ "licenses":string[],"has_car":boolean|null,"certifications":string[],"skills":string[],"languages":string[],
  "experiences":[{"company":string,"title":string,"start_date":string|null,"end_date":string|null,"is_current":boolean,"description":string|null}]}
+
+has_car: true רק אם המסמך מציין רכב או ניידות, false רק אם הוא מציין שאין, אחרת null.
 
 כלל ברזל: אם מידע אינו מופיע במסמך — החזר null או מערך ריק. אין להשלים, לנחש או להמציא פרטים.`;
 
@@ -100,6 +102,7 @@ export class AnthropicAiProvider implements AiProvider {
           typeof data.years_experience === 'number' ? data.years_experience : local.years_experience,
         education: asStringOrNull(data.education) ?? local.education,
         licenses: asStringArray(data.licenses).length ? asStringArray(data.licenses) : local.licenses,
+        has_car: typeof data.has_car === 'boolean' ? data.has_car : local.has_car,
         certifications: asStringArray(data.certifications).length
           ? asStringArray(data.certifications)
           : local.certifications,

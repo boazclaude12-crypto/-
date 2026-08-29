@@ -26,6 +26,8 @@ export interface ParsedCv {
   years_experience: number | null;
   education: string | null;
   licenses: string[];
+  /** Whether the CV says the person drives. Null when it says nothing either way. */
+  has_car: boolean | null;
   certifications: string[];
   skills: string[];
   languages: string[];
@@ -36,6 +38,20 @@ export interface ParsedCv {
 }
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
+/**
+ * Car ownership decides how far a candidate can realistically travel, so it changes the
+ * match score. CVs state it in a handful of stock phrases; anything else stays unknown
+ * rather than being guessed at.
+ */
+const HAS_CAR_RE = /(רכב\s*(פרטי|צמוד|בבעלות)|בעל\s*רכב|בעלת\s*רכב|יש\s*רכב|רכב\s*זמין|ניידות\s*מלאה|own\s+(a\s+)?car|has\s+(a\s+)?car|own\s+vehicle)/i;
+const NO_CAR_RE = /(אין\s*רכב|ללא\s*רכב|no\s+car|without\s+a\s+car)/i;
+
+function detectCar(text: string): boolean | null {
+  if (NO_CAR_RE.test(text)) return false;
+  if (HAS_CAR_RE.test(text)) return true;
+  return null;
+}
 const PHONE_RE = /(?:\+972[-\s]?|0)(?:5\d|[2-4]|[8-9]|7\d)[-\s]?\d{3}[-\s]?\d{4}/;
 
 const SECTION_HEADERS: Record<string, RegExp> = {
@@ -262,6 +278,7 @@ export function parseCvText(text: string): ParsedCv {
     years_experience: yearsExperience,
     education,
     licenses,
+    has_car: detectCar(text),
     certifications,
     skills,
     languages,
@@ -284,6 +301,8 @@ export function parsedCvToCandidateInput(parsed: ParsedCv, source = 'cv_upload')
     current_role: parsed.current_role,
     years_experience: parsed.years_experience,
     education: parsed.education,
+    // A driving licence implies a driver even when the CV never says "car".
+    has_car: parsed.has_car ?? (parsed.licenses.length > 0 ? true : null),
     source,
     attributes: [
       ...parsed.licenses.map((value) => ({ kind: 'license' as const, value })),

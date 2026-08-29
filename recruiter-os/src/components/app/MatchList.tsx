@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Badge, Button, EmptyState, Select, cx } from '../ui';
 import { Icon } from '../ui/icons';
 import { useToast } from '../ui/Toast';
-import { MatchExplanation, type RequirementCheckView } from './MatchExplanation';
+import { MatchExplanation, type CommuteView, type RequirementCheckView } from './MatchExplanation';
 import { api, errorMessage } from '@/lib/client/api';
 import { AVAILABILITY, labelOf } from '@/lib/domain/constants';
 import { formatMoney } from '@/lib/format';
@@ -17,6 +17,7 @@ export interface CandidateMatchView {
   gaps: string[];
   requirements: RequirementCheckView[];
   distanceKm: number | null;
+  commute: CommuteView | null;
   breakdown: Array<{ label: string; earned: number; max: number }>;
   candidate: {
     id: string;
@@ -127,6 +128,7 @@ export function MatchList({
                   gaps={match.gaps}
                   requirements={match.requirements}
                   distanceKm={match.distanceKm}
+                  commute={match.commute}
                   breakdown={match.breakdown}
                   action={
                     isAdded ? (

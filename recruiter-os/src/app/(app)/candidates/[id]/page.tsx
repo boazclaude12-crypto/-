@@ -73,6 +73,9 @@ export default async function CandidateProfilePage({ params }: PageProps) {
     desired_salary: candidate.desired_salary != null ? String(candidate.desired_salary) : '',
     availability: candidate.availability ?? '',
     employment_type: candidate.employment_type ?? '',
+    max_commute_km: candidate.max_commute_km != null ? String(candidate.max_commute_km) : '',
+    has_car: candidate.has_car === 1,
+    willing_to_relocate: candidate.willing_to_relocate === 1,
     source: candidate.source ?? '',
     notes: candidate.notes ?? '',
     attributes: detail.attributes.map((attribute) => ({ kind: attribute.kind, value: attribute.value })),
@@ -149,6 +152,7 @@ export default async function CandidateProfilePage({ params }: PageProps) {
                       gaps={match.gaps}
                       requirements={match.requirements}
                       distanceKm={match.distanceKm}
+                      commute={match.commute}
                       breakdown={match.breakdown}
                       badge={match.alreadyApplied ? 'כבר בתהליך' : undefined}
                     />

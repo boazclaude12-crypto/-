@@ -114,6 +114,9 @@ export const Icon = {
   Star: (p: IconProps) => (
     <Svg {...p}><path d="m10 3 2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.9 5.7 16.2l.9-4.8L3 8l4.9-.6L10 3Z" /></Svg>
   ),
+  MapPin: (p: IconProps) => (
+    <Svg {...p}><path d="M10 17.5s5.5-5 5.5-9a5.5 5.5 0 1 0-11 0c0 4 5.5 9 5.5 9Z" /><circle cx="10" cy="8.5" r="2" /></Svg>
+  ),
   Target: (p: IconProps) => (
     <Svg {...p}><circle cx="10" cy="10" r="7" /><circle cx="10" cy="10" r="3.5" /><circle cx="10" cy="10" r="0.8" fill="currentColor" /></Svg>
   ),

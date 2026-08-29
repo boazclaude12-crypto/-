@@ -42,7 +42,8 @@ function enrich(orgId: string, candidates: Array<Omit<MatchCandidate, 'attribute
 }
 
 const CANDIDATE_COLUMNS = `id, first_name, last_name, city, region, current_role, years_experience,
-  desired_salary, current_salary, availability, employment_type, education, search_text`;
+  desired_salary, current_salary, availability, employment_type, education, search_text,
+  max_commute_km, has_car, willing_to_relocate`;
 
 export function loadCandidatePool(orgId: string, limit = 800): MatchCandidate[] {
   const rows = getDb().all<Omit<MatchCandidate, 'attributes' | 'experience_titles'>>(
@@ -76,6 +77,7 @@ export function loadJobForMatching(orgId: string, jobId: string): MatchJob | nul
     salary_period: job.salary_period,
     employment_type: job.employment_type,
     description: job.description,
+    work_mode: job.work_mode ?? 'onsite',
     requirements: repos.jobRequirements.list(orgId, { where: 'job_id = ?', params: [jobId] }),
   };
 }

@@ -64,6 +64,12 @@ export const EMPLOYMENT_TYPES: Option[] = [
   { value: 'temp', label: 'זמני' },
 ];
 
+export const WORK_MODES: Option[] = [
+  { value: 'onsite', label: 'במקום העבודה' },
+  { value: 'hybrid', label: 'היברידי' },
+  { value: 'remote', label: 'מרחוק' },
+];
+
 export const CANDIDATE_SOURCES: Option[] = [
   { value: 'facebook', label: 'פייסבוק' },
   { value: 'whatsapp_group', label: 'קבוצת ווטסאפ' },

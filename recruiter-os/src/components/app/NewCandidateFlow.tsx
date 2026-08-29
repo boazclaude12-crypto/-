@@ -33,6 +33,29 @@ interface ParsedCvResponse {
   preview?: string;
 }
 
+interface BulkRow {
+  fileName: string;
+  status: 'created' | 'duplicate' | 'unreadable' | 'failed';
+  candidateId: string | null;
+  name: string | null;
+  city: string | null;
+  phone: string | null;
+  missing: string[];
+  reason: string | null;
+}
+
+interface BulkResponse {
+  summary: { total: number; created: number; duplicates: number; unreadable: number; failed: number };
+  results: BulkRow[];
+}
+
+const BULK_TONE: Record<BulkRow['status'], { tone: 'emerald' | 'sky' | 'amber' | 'rose'; label: string }> = {
+  created: { tone: 'emerald', label: 'נוסף' },
+  duplicate: { tone: 'sky', label: 'כבר קיים' },
+  unreadable: { tone: 'amber', label: 'לא נקרא' },
+  failed: { tone: 'rose', label: 'נכשל' },
+};
+
 function toFormValues(form: NonNullable<ParsedCvResponse['form']>): Partial<CandidateFormValues> {
   return {
     ...EMPTY_CANDIDATE,
@@ -75,7 +98,44 @@ export function NewCandidateFlow() {
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [bulk, setBulk] = useState<BulkResponse | null>(null);
+  const [bulkCount, setBulkCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * One file opens the review screen; several go straight in as records.
+   *
+   * Reviewing forty CVs one at a time is not a workflow anybody uses — the batch is
+   * imported and the result table says exactly what happened to each file, so anything
+   * that needs a correction can be opened from there.
+   */
+  async function handleFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    if (files.length === 1) return handleFile(files[0]!);
+
+    setUploading(true);
+    setError(null);
+    setResult(null);
+    setBulk(null);
+    setBulkCount(files.length);
+    try {
+      const formData = new FormData();
+      for (const file of files) formData.append('files', file);
+      const response = await api.upload<BulkResponse>('/api/cv/bulk', formData);
+      setBulk(response);
+      if (response.summary.created > 0) {
+        toast.success(`נוספו ${response.summary.created} מועמדים`);
+        router.refresh();
+      } else {
+        toast.info('לא נוסף אף מועמד — ראה פירוט');
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -134,8 +194,7 @@ export function NewCandidateFlow() {
             onDrop={(event) => {
               event.preventDefault();
               setDragging(false);
-              const file = event.dataTransfer.files?.[0];
-              if (file) void handleFile(file);
+              if (event.dataTransfer.files?.length) void handleFiles(event.dataTransfer.files);
             }}
             className={cx(
               'flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition',
@@ -145,26 +204,33 @@ export function NewCandidateFlow() {
             {uploading ? (
               <>
                 <Spinner className="h-7 w-7 text-brand" />
-                <p className="text-sm font-medium text-ink">קורא את {fileName}…</p>
+                <p className="text-sm font-medium text-ink">
+                  {bulkCount > 1 ? `קורא ${bulkCount} קבצים…` : `קורא את ${fileName}…`}
+                </p>
+                {bulkCount > 1 && (
+                  <p className="text-xs text-faint">קריאה של קורות חיים לוקחת כמה שניות לקובץ</p>
+                )}
               </>
             ) : (
               <>
                 <Icon.Upload size={30} className="text-faint" />
                 <div>
-                  <p className="text-sm font-semibold text-ink">גרור לכאן קובץ קורות חיים</p>
-                  <p className="mt-1 text-sm text-muted">PDF, DOCX, TXT או RTF — עד 10MB</p>
+                  <p className="text-sm font-semibold text-ink">גרור לכאן קורות חיים</p>
+                  <p className="mt-1 text-sm text-muted">
+                    קובץ אחד או עד 40 יחד · PDF, DOCX, TXT או RTF — עד 10MB לקובץ
+                  </p>
                 </div>
                 <Button variant="secondary" onClick={() => inputRef.current?.click()}>
-                  בחירת קובץ
+                  בחירת קבצים
                 </Button>
                 <input
                   ref={inputRef}
                   type="file"
+                  multiple
                   accept=".pdf,.docx,.txt,.rtf"
                   className="hidden"
                   onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void handleFile(file);
+                    if (event.target.files?.length) void handleFiles(event.target.files);
                   }}
                 />
               </>
@@ -172,6 +238,59 @@ export function NewCandidateFlow() {
           </div>
 
           <ErrorNote>{error}</ErrorNote>
+
+          {bulk && (
+            <div className="mt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="emerald">{bulk.summary.created} נוספו</Badge>
+                {bulk.summary.duplicates > 0 && <Badge tone="sky">{bulk.summary.duplicates} כבר קיימים</Badge>}
+                {bulk.summary.unreadable > 0 && <Badge tone="amber">{bulk.summary.unreadable} לא נקראו</Badge>}
+                {bulk.summary.failed > 0 && <Badge tone="rose">{bulk.summary.failed} נכשלו</Badge>}
+              </div>
+
+              <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+                {bulk.results.map((row) => {
+                  const meta = BULK_TONE[row.status];
+                  return (
+                    <li key={row.fileName} className="flex items-center gap-3 px-3 py-2.5">
+                      <Badge tone={meta.tone}>{meta.label}</Badge>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-ink">
+                          {row.name ?? row.fileName}
+                        </span>
+                        <span className="block truncate text-xs text-faint">
+                          {[row.city, row.phone, row.reason].filter(Boolean).join(' · ') || row.fileName}
+                        </span>
+                      </span>
+                      {row.candidateId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/candidates/${row.candidateId}`)}
+                        >
+                          פתיחה
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="mt-3 flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => { setBulk(null); setBulkCount(0); }}>
+                  העלאה נוספת
+                </Button>
+                <Button onClick={() => router.push('/candidates')}>למאגר המועמדים</Button>
+              </div>
+
+              {bulk.summary.created > 0 && (
+                <p className="mt-3 text-xs text-faint">
+                  שדות שלא הופיעו בקבצים נשארו ריקים. שים לב במיוחד לעיר ולטווח הנסיעה — הם
+                  משפיעים ישירות על ציון ההתאמה.
+                </p>
+              )}
+            </div>
+          )}
 
           {result && result.status !== 'parsed' && (
             <div className="mt-4 rounded-lg bg-warn/10 px-4 py-3 text-sm text-warn">

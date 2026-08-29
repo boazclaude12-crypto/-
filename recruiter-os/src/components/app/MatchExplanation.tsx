@@ -22,10 +22,33 @@ export interface MatchExplanationProps {
   gaps: string[];
   requirements: RequirementCheckView[];
   distanceKm: number | null;
+  commute?: CommuteView | null;
   breakdown: Array<{ label: string; earned: number; max: number }>;
   badge?: string;
   action?: React.ReactNode;
 }
+
+export interface CommuteView {
+  km: number | null;
+  status: 'remote' | 'comfortable' | 'acceptable' | 'stretch' | 'unrealistic' | 'relocating' | 'unknown';
+  note: string;
+  cap: number | null;
+}
+
+/**
+ * The commute chip is coloured, not neutral: a distance that caps the score is the single
+ * most common reason a strong-looking match goes nowhere, and it should be visible before
+ * the recruiter opens the card.
+ */
+const COMMUTE_TONE: Record<CommuteView['status'], string> = {
+  remote: 'bg-ok/12 text-ok',
+  comfortable: 'bg-ok/12 text-ok',
+  acceptable: 'bg-info/12 text-info',
+  relocating: 'bg-info/12 text-info',
+  stretch: 'bg-warn/12 text-warn',
+  unrealistic: 'bg-danger/12 text-danger',
+  unknown: 'bg-line/50 text-faint',
+};
 
 function scoreTone(score: number): { ring: string; text: string; label: string } {
   if (score >= 85) return { ring: 'bg-ok/12', text: 'text-ok', label: 'התאמה גבוהה' };
@@ -48,6 +71,7 @@ export function MatchExplanation({
   gaps,
   requirements,
   distanceKm,
+  commute,
   breakdown,
   badge,
   action,
@@ -79,10 +103,26 @@ export function MatchExplanation({
               <span className="truncate text-sm font-semibold text-ink">{title}</span>
             )}
             {badge && <Badge tone="slate">{badge}</Badge>}
-            {distanceKm !== null && (
-              <span className="num text-xs text-faint">
-                {distanceKm === 0 ? 'באותה עיר' : `${distanceKm} ק"מ`}
+            {commute ? (
+              <span
+                className={cx('rounded-md px-1.5 py-0.5 text-[11px] font-medium', COMMUTE_TONE[commute.status])}
+                title={commute.note}
+              >
+                {commute.status === 'remote'
+                  ? 'מרחוק'
+                  : commute.km === null
+                    ? 'מרחק לא ידוע'
+                    : commute.km === 0
+                      ? 'באותה עיר'
+                      : `${commute.km} ק"מ`}
+                {commute.cap !== null && ` · תקרה ${commute.cap}`}
               </span>
+            ) : (
+              distanceKm !== null && (
+                <span className="num text-xs text-faint">
+                  {distanceKm === 0 ? 'באותה עיר' : `${distanceKm} ק"מ`}
+                </span>
+              )
             )}
           </div>
           {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}

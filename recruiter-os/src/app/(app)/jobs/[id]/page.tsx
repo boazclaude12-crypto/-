@@ -66,6 +66,7 @@ export default async function JobDetailPage({ params }: PageProps) {
     hours: job.hours ?? '',
     work_days: job.work_days ?? '',
     employment_type: job.employment_type ?? '',
+    work_mode: job.work_mode ?? 'onsite',
     description: job.description ?? '',
     benefits: job.benefits ?? '',
     status: job.status,

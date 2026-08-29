@@ -15,6 +15,10 @@ export interface MatchCandidate {
   availability: string | null;
   employment_type: string | null;
   education: string | null;
+  /** Commute the candidate accepts, in km. Null falls back to a driving-based default. */
+  max_commute_km: number | null;
+  has_car: number | null;
+  willing_to_relocate: number | null;
   search_text: string;
   attributes: Array<{ kind: string; value: string; value_norm: string }>;
   experience_titles: string[];
@@ -30,6 +34,8 @@ export interface MatchJob {
   salary_period: string;
   employment_type: string | null;
   description: string | null;
+  /** onsite | hybrid | remote */
+  work_mode: string | null;
   requirements: Array<{ kind: string; value: string; value_norm: string; is_required: number; weight: number }>;
 }
 
@@ -48,19 +54,27 @@ export interface MatchResult {
   gaps: string[];
   requirements: RequirementCheck[];
   distanceKm: number | null;
+  /** Why distance scored the way it did — shown next to the score, never hidden. */
+  commute: CommuteVerdict;
   salaryFit: 'within' | 'above' | 'below' | 'unknown';
   availabilityLabel: string;
   breakdown: Array<{ label: string; earned: number; max: number }>;
 }
 
-/** Relative importance of each dimension. They sum to 100. */
+/**
+ * Relative importance of each dimension. They sum to 100.
+ *
+ * Location carries more weight than any dimension except the requirements themselves.
+ * A placement that fails because the commute is unworkable fails just as completely as
+ * one that fails on a missing licence, and it fails after everyone's time is spent.
+ */
 export const WEIGHTS = {
-  requirements: 40,
-  role: 15,
-  location: 15,
-  salary: 10,
-  availability: 10,
-  experience: 10,
+  requirements: 38,
+  role: 14,
+  location: 22,
+  salary: 9,
+  availability: 9,
+  experience: 8,
 } as const;
 
 const AVAILABILITY_SCORE: Record<string, number> = {
@@ -123,17 +137,130 @@ function salaryFit(candidate: MatchCandidate, job: MatchJob): { fit: MatchResult
   return { fit: 'above', ratio: overshoot <= 0.1 ? 0.7 : overshoot <= 0.25 ? 0.35 : 0 };
 }
 
-function locationScore(candidate: MatchCandidate, job: MatchJob): { ratio: number; km: number | null } {
+export interface CommuteVerdict {
+  km: number | null;
+  ratio: number;
+  /** Highest total score this distance still allows, or null when it caps nothing. */
+  cap: number | null;
+  /** The commute this candidate was judged against, in km. */
+  toleranceKm: number;
+  /** Whether that figure came from the candidate or from a default. */
+  toleranceStated: boolean;
+  status: 'remote' | 'comfortable' | 'acceptable' | 'stretch' | 'unrealistic' | 'relocating' | 'unknown';
+  note: string;
+}
+
+/**
+ * Commute a candidate is assumed to accept when they have not said.
+ *
+ * Someone with a car treats 40 km as an ordinary drive. Without one the same trip means
+ * buses and connections, and the realistic radius collapses — which is why the fallback
+ * is not a single number.
+ */
+const DEFAULT_COMMUTE_KM = { withCar: 40, withoutCar: 20 } as const;
+
+/**
+ * Ceiling on the total score once the commute passes what the candidate accepts.
+ *
+ * Continuous rather than banded, for two reasons: there is no real difference between
+ * one kilometre inside the limit and one kilometre outside it, so the curve starts at
+ * 100 exactly where the limit is and falls from there; and because it keeps falling,
+ * two candidates who are both too far apart still rank in the right order — 50 km out
+ * is worse than 30 km out, and the list has to show that.
+ */
+function commuteCeiling(relative: number): number {
+  return Math.max(8, Math.round(100 / relative ** 1.3));
+}
+
+/**
+ * Scores the journey to work.
+ *
+ * Distance is judged against what this candidate actually accepts rather than one fixed
+ * rule, because that is what makes the number honest: 60 km is nothing to a driver who
+ * said they will travel 80, and impossible for someone without a car who said 15. Past
+ * that personal limit the distance stops being a deduction and becomes a ceiling on the
+ * whole score — a candidate who cannot get to work is not a 90% match no matter how
+ * perfectly the rest of the profile reads.
+ *
+ * Nothing is capped on missing data. An unknown city is unknown, not far.
+ */
+function locationScore(candidate: MatchCandidate, job: MatchJob): CommuteVerdict {
   const km = distanceKm(candidate.city, job.city);
-  if (km === null) {
-    if (candidate.region && job.region) return { ratio: candidate.region === job.region ? 0.8 : 0.3, km: null };
-    return { ratio: 0.5, km: null };
+  const hasCar = (candidate.has_car ?? 0) === 1;
+  const stated = !!candidate.max_commute_km && candidate.max_commute_km > 0;
+  const base = stated
+    ? candidate.max_commute_km!
+    : hasCar
+      ? DEFAULT_COMMUTE_KM.withCar
+      : DEFAULT_COMMUTE_KM.withoutCar;
+
+  // Hybrid means the trip happens some days, not every day, so the same distance is
+  // easier to live with. Remote means it never happens.
+  const workMode = job.work_mode ?? 'onsite';
+  if (workMode === 'remote') {
+    return {
+      km, ratio: 1, cap: null, toleranceKm: base, toleranceStated: stated, status: 'remote',
+      note: 'משרה מרחוק — המרחק לא רלוונטי',
+    };
   }
-  if (km <= 10) return { ratio: 1, km };
-  if (km <= 25) return { ratio: 0.85, km };
-  if (km <= 50) return { ratio: 0.6, km };
-  if (km <= 80) return { ratio: 0.3, km };
-  return { ratio: 0.1, km };
+  const tolerance = workMode === 'hybrid' ? base * 2 : base;
+
+  if (km === null) {
+    const sameRegion = candidate.region && job.region ? candidate.region === job.region : null;
+    const ratio = sameRegion === null ? 0.5 : sameRegion ? 0.8 : 0.3;
+    return {
+      km: null, ratio, cap: null, toleranceKm: tolerance, toleranceStated: stated, status: 'unknown',
+      note: sameRegion === null
+        ? 'לא ידוע מאיפה המועמד — המרחק לא נלקח בחשבון'
+        : sameRegion
+          ? 'אותו אזור, עיר לא ידועה'
+          : 'אזור אחר, עיר לא ידועה',
+    };
+  }
+
+  const relative = km / tolerance;
+
+  if (relative <= 0.5) {
+    return {
+      km, ratio: 1, cap: null, toleranceKm: tolerance, toleranceStated: stated, status: 'comfortable',
+      note: km === 0 ? `גר ב${job.city}` : `${km} ק"מ — נסיעה קצרה`,
+    };
+  }
+
+  if (relative <= 1) {
+    // Linear from 1.0 at half the limit down to 0.7 at the limit itself.
+    const ratio = 1 - ((relative - 0.5) / 0.5) * 0.3;
+    return {
+      km, ratio, cap: null, toleranceKm: tolerance, toleranceStated: stated, status: 'acceptable',
+      note: stated
+        ? `${km} ק"מ — בתוך טווח הנסיעה שהמועמד ציין (${Math.round(tolerance)} ק"מ)`
+        : `${km} ק"מ — נסיעה סבירה`,
+    };
+  }
+
+  // Past the limit. Someone open to moving is judged on the move, not the drive.
+  if ((candidate.willing_to_relocate ?? 0) === 1) {
+    return {
+      km, ratio: 0.6, cap: null, toleranceKm: tolerance, toleranceStated: stated, status: 'relocating',
+      note: `${km} ק"מ, אבל המועמד מוכן לעבור דירה`,
+    };
+  }
+
+  const ratio = 0.7 / relative ** 1.6;
+  const cap = commuteCeiling(relative);
+  return {
+    km,
+    ratio: Math.max(0, ratio),
+    cap,
+    toleranceKm: tolerance,
+    toleranceStated: stated,
+    status: relative <= 1.75 ? 'stretch' : 'unrealistic',
+    // Never put words in the candidate's mouth: an assumed radius is labelled as one, so
+    // the recruiter knows a two-second edit may change the score.
+    note: stated
+      ? `${km} ק"מ — מעבר ל-${Math.round(tolerance)} ק"מ שהמועמד מוכן לנסוע`
+      : `${km} ק"מ — רחוק, ולא ידוע כמה המועמד מוכן לנסוע${hasCar ? '' : ' (לא ידוע על רכב)'}`,
+  };
 }
 
 function roleScore(candidate: MatchCandidate, job: MatchJob): number {
@@ -192,9 +319,12 @@ export function scoreMatch(candidate: MatchCandidate, job: MatchJob): MatchResul
 
   let score = Math.round(breakdown.reduce((sum, item) => sum + item.earned, 0));
 
-  // A missing mandatory requirement caps the score: it is a blocker, not a deduction.
+  // Blockers cap the score rather than shaving points off it. A missing licence or an
+  // unreachable workplace does not make a candidate slightly worse — it makes the
+  // placement unlikely, and the number has to say so.
   const missingRequired = requiredChecks.filter((c) => !c.met);
   if (missingRequired.length > 0) score = Math.min(score, 100 - missingRequired.length * 20 - 10);
+  if (location.cap !== null) score = Math.min(score, location.cap);
   score = Math.max(0, Math.min(100, score));
 
   const reasons: string[] = [];
@@ -206,8 +336,8 @@ export function scoreMatch(candidate: MatchCandidate, job: MatchJob): MatchResul
   }
   if (role >= 0.7) reasons.push(`תפקיד קרוב מאוד למשרה (${candidate.current_role ?? 'ניסיון קודם'})`);
   else if (role >= 0.35) reasons.push('רקע חלקי בתפקיד דומה');
-  if (location.km !== null && location.km <= 25) {
-    reasons.push(location.km === 0 ? `גר ב${job.city}` : `${location.km} ק"מ מהמשרה`);
+  if (location.status === 'remote' || location.status === 'comfortable' || location.status === 'acceptable') {
+    reasons.push(location.note);
   }
   if (salary.fit === 'within') reasons.push('ציפיות השכר בתוך טווח המשרה');
   if (candidate.availability === 'immediate') reasons.push('זמין מיידית');
@@ -216,7 +346,13 @@ export function scoreMatch(candidate: MatchCandidate, job: MatchJob): MatchResul
   for (const check of missingRequired) {
     gaps.push(`חסר: ${labelOf(REQUIREMENT_KINDS, check.kind)} — ${check.value}`);
   }
-  if (location.km !== null && location.km > 50) gaps.push(`מרחק גדול מהמשרה (${location.km} ק"מ)`);
+  if (location.status === 'stretch' || location.status === 'unrealistic') {
+    gaps.push(`${location.note} — הציון מוגבל ל-${location.cap}`);
+  } else if (location.status === 'relocating') {
+    gaps.push(location.note);
+  } else if (location.status === 'unknown' && location.km === null) {
+    gaps.push(location.note);
+  }
   if (salary.fit === 'above') gaps.push('ציפיות השכר גבוהות מטווח המשרה');
   if (candidate.availability === 'unavailable') gaps.push('לא זמין כרגע');
   if (checks.length === 0) gaps.push('למשרה לא הוגדרו דרישות — הציון מבוסס על תפקיד, מיקום וזמינות בלבד');
@@ -228,6 +364,7 @@ export function scoreMatch(candidate: MatchCandidate, job: MatchJob): MatchResul
     gaps,
     requirements: checks,
     distanceKm: location.km,
+    commute: location,
     salaryFit: salary.fit,
     availabilityLabel: labelOf(AVAILABILITY, candidate.availability, 'לא ידוע'),
     breakdown,

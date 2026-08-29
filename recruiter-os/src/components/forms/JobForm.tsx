@@ -7,7 +7,7 @@ import { TagEditor } from './CandidateForm';
 import { api, errorMessage } from '@/lib/client/api';
 import { useToast } from '../ui/Toast';
 import {
-  EMPLOYMENT_TYPES, JOB_PRIORITIES, JOB_STATUSES, REGIONS, REQUIREMENT_KINDS,
+  EMPLOYMENT_TYPES, WORK_MODES, JOB_PRIORITIES, JOB_STATUSES, REGIONS, REQUIREMENT_KINDS,
 } from '@/lib/domain/constants';
 
 export interface JobFormValues {
@@ -22,6 +22,7 @@ export interface JobFormValues {
   hours: string;
   work_days: string;
   employment_type: string;
+  work_mode: string;
   description: string;
   benefits: string;
   status: string;
@@ -35,7 +36,8 @@ export interface JobFormValues {
 
 export const EMPTY_JOB: JobFormValues = {
   title: '', client_id: '', headcount: '1', city: '', region: '', salary_min: '', salary_max: '',
-  salary_period: 'month', hours: '', work_days: '', employment_type: '', description: '', benefits: '',
+  salary_period: 'month', hours: '', work_days: '', employment_type: '', work_mode: 'onsite',
+  description: '', benefits: '',
   status: 'open', priority: 'normal', deadline: '', fee_type: 'percent', fee_value: '',
   requirements: [], tags: [],
 };
@@ -90,6 +92,7 @@ export function JobForm({
         hours: values.hours.trim() || null,
         work_days: values.work_days.trim() || null,
         employment_type: values.employment_type || null,
+        work_mode: values.work_mode || 'onsite',
         description: values.description.trim() || null,
         benefits: values.benefits.trim() || null,
         status: values.status,
@@ -183,6 +186,13 @@ export function JobForm({
             placeholder="בחר"
             value={values.employment_type}
             onChange={(event) => set('employment_type', event.target.value)}
+          />
+        </Field>
+        <Field label="אופן העבודה" hint="משרה מרחוק מבטלת את שיקול המרחק בהתאמה">
+          <Select
+            options={WORK_MODES}
+            value={values.work_mode}
+            onChange={(event) => set('work_mode', event.target.value)}
           />
         </Field>
         <Field label="שעות עבודה">
