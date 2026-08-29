@@ -13,9 +13,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV DATABASE_FILE=/app/data/recruiter.db
 ENV UPLOAD_DIR=/app/data/uploads
-# Hosts like Railway, Render and Fly assign the port at runtime via $PORT.
-# 3100 is only the fallback for `docker run` on a laptop.
-ENV PORT=3100
+# PORT is deliberately NOT set here. Hosts like Railway, Render and Fly inject it,
+# and a baked-in value can win over theirs — the app would then listen on a port
+# nothing routes to. Unset, `next start` uses $PORT when present and 3000 otherwise.
 
 COPY --from=build /app/package.json /app/package-lock.json /app/next.config.mjs ./
 COPY --from=build /app/node_modules ./node_modules
@@ -27,6 +27,6 @@ COPY --from=build /app/db ./db
 RUN mkdir -p /app/data && chown -R node:node /app/data
 USER node
 VOLUME ["/app/data"]
-EXPOSE 3100
+EXPOSE 3000
 # No -p flag on purpose: `next start` binds to $PORT, so the host controls it.
 CMD ["npx", "next", "start"]
