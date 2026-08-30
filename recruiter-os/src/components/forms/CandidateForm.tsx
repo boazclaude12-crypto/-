@@ -143,14 +143,8 @@ export function CandidateForm({
             placeholder="050-1234567"
           />
         </Field>
-        <Field label="אימייל">
-          <Input value={values.email} onChange={(e) => set('email', e.target.value)} inputMode="email" />
-        </Field>
-        <Field label="עיר">
+        <Field label="עיר" hint="משפיע על ציון ההתאמה">
           <Input value={values.city} onChange={(e) => set('city', e.target.value)} placeholder="חיפה" />
-        </Field>
-        <Field label="תפקיד נוכחי">
-          <Input value={values.current_role} onChange={(e) => set('current_role', e.target.value)} />
         </Field>
       </div>
 
@@ -194,12 +188,18 @@ export function CandidateForm({
         className="flex items-center gap-1.5 text-sm font-medium text-brand"
       >
         <Icon.Plus size={14} className={cx('transition', showMore && 'rotate-45')} />
-        {showMore ? 'פחות פרטים' : 'פרטים נוספים (ניסיון, שכר, רישיונות)'}
+        {showMore ? 'פחות פרטים' : 'פרטים נוספים (אימייל, ניסיון, שכר, רישיונות)'}
       </button>
 
       {showMore && (
         <div className="space-y-4 border-t border-line pt-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="אימייל">
+              <Input value={values.email} onChange={(e) => set('email', e.target.value)} inputMode="email" />
+            </Field>
+            <Field label="תפקיד נוכחי">
+              <Input value={values.current_role} onChange={(e) => set('current_role', e.target.value)} />
+            </Field>
             <Field label="WhatsApp">
               <Input value={values.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} inputMode="tel" />
             </Field>

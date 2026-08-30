@@ -87,7 +87,7 @@ function toFormValues(form: NonNullable<ParsedCvResponse['form']>): Partial<Cand
  * The parsed result is always shown for review first — nothing is saved behind the
  * recruiter's back, and fields the CV did not contain are listed explicitly.
  */
-export function NewCandidateFlow() {
+export function NewCandidateFlow({ onDone }: { onDone?: () => void } = {}) {
   const router = useRouter();
   const toast = useToast();
   const [tab, setTab] = useState<'cv' | 'manual'>('cv');
@@ -266,7 +266,10 @@ export function NewCandidateFlow() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => router.push(`/candidates/${row.candidateId}`)}
+                          onClick={() => {
+                            onDone?.();
+                            router.push(`/candidates/${row.candidateId}`);
+                          }}
                         >
                           פתיחה
                         </Button>
@@ -280,7 +283,14 @@ export function NewCandidateFlow() {
                 <Button variant="secondary" onClick={() => { setBulk(null); setBulkCount(0); }}>
                   העלאה נוספת
                 </Button>
-                <Button onClick={() => router.push('/candidates')}>למאגר המועמדים</Button>
+                <Button
+                  onClick={() => {
+                    onDone?.();
+                    router.push('/candidates');
+                  }}
+                >
+                  למאגר המועמדים
+                </Button>
               </div>
 
               {bulk.summary.created > 0 && (
@@ -347,7 +357,9 @@ export function NewCandidateFlow() {
               initial={prefill}
               onSaved={async (candidate) => {
                 await attachFile(candidate.id);
-                router.push(`/candidates/${candidate.id}`);
+                onDone?.();
+                onDone?.();
+              router.push(`/candidates/${candidate.id}`);
                 router.refresh();
               }}
             />
@@ -359,6 +371,7 @@ export function NewCandidateFlow() {
         <Card>
           <CandidateForm
             onSaved={(candidate) => {
+              onDone?.();
               router.push(`/candidates/${candidate.id}`);
               router.refresh();
             }}
