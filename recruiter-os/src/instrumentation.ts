@@ -40,4 +40,37 @@ export async function register() {
         'זה בדרך כלל Volume שחובר בבעלות root — ודא שהמכולה רצה דרך docker-entrypoint.sh.',
     );
   }
+
+  startMailboxSync();
+}
+
+/**
+ * Polls connected mailboxes in the background.
+ *
+ * This is one long-running process, so an interval is the whole scheduler — no cron, no
+ * worker, nothing else to deploy or keep alive. The first run is delayed so a restart
+ * does not spend its first second on network I/O while the first page is being served,
+ * and `unref` keeps the timer from holding the process open during a shutdown.
+ */
+function startMailboxSync() {
+  const run = async () => {
+    try {
+      const { syncAllMailboxes } = await import('@/lib/email/sync');
+      const results = await syncAllMailboxes();
+      for (const result of results) {
+        if (result.error) console.error(`[recruiter-os] סנכרון מייל נכשל (${result.orgId}): ${result.error}`);
+        else if (result.summary.imported > 0) {
+          console.log(`[recruiter-os] נקלטו ${result.summary.imported} מועמדים מהמייל (${result.orgId})`);
+        }
+      }
+    } catch (caught) {
+      // A failed sync must never take the web server down with it.
+      console.error('[recruiter-os] סנכרון מייל נכשל:', caught);
+    }
+  };
+
+  void import('@/lib/email/sync').then(({ SYNC_INTERVAL_MS }) => {
+    setTimeout(run, 60_000).unref();
+    setInterval(run, SYNC_INTERVAL_MS).unref();
+  });
 }

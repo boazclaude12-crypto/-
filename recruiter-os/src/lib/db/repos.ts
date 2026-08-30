@@ -2,6 +2,7 @@ import { createRepository } from './repo';
 import type {
   ActivityEventRow, ApplicationRow, AutomationRow, AutomationRunRow, CandidateAttributeRow,
   CandidateDocumentRow, CandidateExperienceRow, CandidateRow, ClientContactRow, ClientRow,
+  EmailAccountRow, EmailMessageRow,
   InterviewRow, JobRequirementRow, JobRow, MessageRow, NoteRow, PaymentRow, PlacementRow,
   StageRow, TagRow, TaskRow,
 } from '../types';
@@ -27,5 +28,7 @@ export const repos = {
   payments: createRepository<PaymentRow>('payments', 'pay'),
   automations: createRepository<AutomationRow>('automations', 'aut'),
   automationRuns: createRepository<AutomationRunRow>('automation_runs', 'run'),
+  emailAccounts: createRepository<EmailAccountRow>('email_accounts', 'mbx'),
+  emailMessages: createRepository<EmailMessageRow>('email_messages', 'eml'),
   activity: createRepository<ActivityEventRow>('activity_events', 'act'),
 };

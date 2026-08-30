@@ -361,3 +361,40 @@ export interface ActivityEventRow {
   meta: string;
   created_at: string;
 }
+
+export interface EmailAccountRow {
+  id: string;
+  org_id: string;
+  email: string;
+  host: string;
+  port: number;
+  secure: number;
+  /** AES-256-GCM ciphertext — never the password itself. */
+  password_enc: string;
+  folder: string;
+  since_date: string | null;
+  last_sync_at: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailMessageRow {
+  id: string;
+  org_id: string;
+  account_id: string;
+  message_uid: string;
+  message_id: string | null;
+  subject: string | null;
+  sender: string | null;
+  received_at: string | null;
+  /** imported | duplicate | no_attachment | unreadable | failed */
+  status: string;
+  candidate_id: string | null;
+  job_title: string | null;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+}

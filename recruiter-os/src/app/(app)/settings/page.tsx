@@ -8,6 +8,7 @@ import { storageHealth } from '@/lib/storage-health';
 import { Badge, Card } from '@/components/ui';
 import { Icon } from '@/components/ui/icons';
 import { StageEditor, DemoDataCard, DataSafetyCard } from '@/components/app/SettingsPanels';
+import { MailboxCard } from '@/components/app/MailboxCard';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'הגדרות — Recruiter OS' };
@@ -97,6 +98,8 @@ export default async function SettingsPage() {
             בוואטסאפ בלחיצה. שכבת השירות מוכנה — חיבור ספק אמיתי דורש מפתחות בלבד.
           </p>
         </Card>
+
+        <MailboxCard />
 
         <DataSafetyCard health={health} />
 
