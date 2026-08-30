@@ -69,8 +69,14 @@ function startMailboxSync() {
     }
   };
 
-  void import('@/lib/email/sync').then(({ SYNC_INTERVAL_MS }) => {
-    setTimeout(run, 60_000).unref();
-    setInterval(run, SYNC_INTERVAL_MS).unref();
-  });
+  // An unhandled rejection is fatal in Node, so a module that fails to load here would
+  // take the whole web server down with it. Background mail is never worth that.
+  void import('@/lib/email/sync')
+    .then(({ SYNC_INTERVAL_MS }) => {
+      setTimeout(run, 60_000).unref();
+      setInterval(run, SYNC_INTERVAL_MS).unref();
+    })
+    .catch((caught) => {
+      console.error('[recruiter-os] סנכרון המייל לא הופעל:', caught);
+    });
 }

@@ -106,6 +106,19 @@ export function matchCandidatesForJob(
   const ranked = rankCandidates(pool, job, { minScore: options.minScore, limit: options.limit ?? 20 });
   const byId = new Map(pool.map((c) => [c.id, c]));
 
+  // Contact details are not part of scoring, so they are not in the matching pool — but
+  // the shortlist is where a recruiter decides to message someone, and a row without a
+  // number cannot offer that. Fetched for the ranked handful only.
+  const phones = new Map<string, string | null>();
+  if (ranked.length > 0) {
+    const placeholders = ranked.map(() => '?').join(',');
+    const rows = getDb().all<{ id: string; phone: string | null; whatsapp: string | null }>(
+      `SELECT id, phone, whatsapp FROM candidates WHERE org_id = ? AND id IN (${placeholders})`,
+      orgId, ...ranked.map((result) => result.candidateId),
+    );
+    for (const row of rows) phones.set(row.id, row.whatsapp || row.phone);
+  }
+
   return ranked.map((result) => {
     const candidate = byId.get(result.candidateId)!;
     return {
@@ -115,7 +128,7 @@ export function matchCandidatesForJob(
         name: `${candidate.first_name} ${candidate.last_name}`.trim(),
         city: candidate.city,
         current_role: candidate.current_role,
-        phone: null,
+        phone: phones.get(candidate.id) ?? null,
         desired_salary: candidate.desired_salary,
         availability: candidate.availability,
       },

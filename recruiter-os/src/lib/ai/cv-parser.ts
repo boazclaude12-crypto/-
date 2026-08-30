@@ -65,7 +65,7 @@ const SECTION_HEADERS: Record<string, RegExp> = {
 };
 
 /** Driving licence classes as written in Israeli CVs. */
-const LICENSE_PATTERNS: Array<{ re: RegExp; label: string }> = [
+export const LICENSE_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /רישיון\s*(?:נהיגה\s*)?(?:דרגה\s*)?["']?\s*C\s*\+?\s*E\b/i, label: 'רישיון CE' },
   { re: /רישיון\s*(?:נהיגה\s*)?(?:דרגה\s*)?["']?\s*C1\b/i, label: 'רישיון C1' },
   { re: /רישיון\s*(?:נהיגה\s*)?(?:דרגה\s*)?["']?\s*C\b/i, label: 'רישיון C' },
@@ -77,18 +77,18 @@ const LICENSE_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /\bclass\s*C\b/i, label: 'רישיון C' },
 ];
 
-const CERTIFICATION_KEYWORDS = [
+export const CERTIFICATION_KEYWORDS = [
   'מלגזה', 'מלגזן', 'עגורן', 'מנוף', 'עגורנאי', 'ריתוך', 'חשמלאי', 'ממונה בטיחות',
   'עזרה ראשונה', 'מפעיל ציוד', 'טרקטורון', 'שינוע חומרים מסוכנים', 'חומ"ס', 'רכב כבד',
   'מחסנאי מוסמך', 'הנדסאי', 'מאבטח', 'טכנאי',
 ];
 
-const SKILL_KEYWORDS = [
+export const SKILL_KEYWORDS = [
   'excel', 'אקסל', 'sap', 'priority', 'פריוריטי', 'ניהול צוות', 'שירות לקוחות', 'מכירות',
   'ליקוט', 'ניהול מלאי', 'קופה', 'נהיגה', 'מחשוב', 'office', 'crm', 'תפעול', 'לוגיסטיקה',
 ];
 
-const LANGUAGE_KEYWORDS = ['עברית', 'אנגלית', 'ערבית', 'רוסית', 'צרפתית', 'ספרדית', 'אמהרית'];
+export const LANGUAGE_KEYWORDS = ['עברית', 'אנגלית', 'ערבית', 'רוסית', 'צרפתית', 'ספרדית', 'אמהרית'];
 
 const NON_NAME_TOKENS = /(קורות|חיים|resume|cv|טלפון|נייד|מייל|email|כתובת|תאריך)/i;
 const MONTH_RANGE_RE =

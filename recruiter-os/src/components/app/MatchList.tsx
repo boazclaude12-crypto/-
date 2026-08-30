@@ -8,6 +8,7 @@ import { useToast } from '../ui/Toast';
 import { MatchExplanation, type CommuteView, type RequirementCheckView } from './MatchExplanation';
 import { api, errorMessage } from '@/lib/client/api';
 import { AVAILABILITY, labelOf } from '@/lib/domain/constants';
+import { whatsappHref } from '@/lib/format';
 import { formatMoney } from '@/lib/format';
 
 export interface CandidateMatchView {
@@ -26,6 +27,7 @@ export interface CandidateMatchView {
     current_role: string | null;
     desired_salary: number | null;
     availability: string | null;
+    phone: string | null;
   };
   alreadyOnJob: boolean;
 }
@@ -53,6 +55,7 @@ export function MatchList({
   const [minScore, setMinScore] = useState(String(initialMinScore));
   const [hideExisting, setHideExisting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [messagingId, setMessagingId] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<string>>(new Set());
 
   const visible = matches.filter(
@@ -75,6 +78,55 @@ export function MatchList({
       toast.error(errorMessage(error));
     } finally {
       setBusyId(null);
+    }
+  }
+
+  /**
+   * Writes the approach message for this candidate and this job, files it in their
+   * history, and hands it to WhatsApp ready to send.
+   *
+   * From the shortlist, because that is where the decision to contact someone is made.
+   * Sending used to mean opening the profile, finding the message screen and choosing
+   * the job again — three screens between deciding and doing, on the one action the
+   * whole product exists to make faster.
+   */
+  async function messageOnWhatsApp(match: CandidateMatchView) {
+    const phone = match.candidate.phone;
+    if (!phone) {
+      toast.error('אין מספר טלפון למועמד הזה');
+      return;
+    }
+    setMessagingId(match.candidateId);
+    // Opened synchronously: a popup blocked because it followed an await is the most
+    // common way this kind of button silently does nothing.
+    const tab = window.open('', '_blank');
+    try {
+      const generated = await api.post<{ body: string }>('/api/messages/generate', {
+        candidate_id: match.candidateId,
+        job_id: jobId,
+        channel: 'whatsapp',
+        tone: 'short',
+      });
+      const href = whatsappHref(phone, generated.body);
+      if (tab && href) tab.location.href = href;
+      else tab?.close();
+
+      // Recorded against the candidate and the job, so the pipeline shows who has been
+      // approached about what. A message sent and forgotten is how a candidate ends up
+      // contacted twice about the same opening — or never followed up at all.
+      await api.post('/api/messages', {
+        channel: 'whatsapp',
+        candidate_id: match.candidateId,
+        job_id: jobId,
+        body: generated.body,
+      });
+      toast.success(`ההודעה ל${match.candidate.name} נשמרה בהיסטוריה`);
+      router.refresh();
+    } catch (caught) {
+      tab?.close();
+      toast.error(errorMessage(caught));
+    } finally {
+      setMessagingId(null);
     }
   }
 
@@ -131,20 +183,33 @@ export function MatchList({
                   commute={match.commute}
                   breakdown={match.breakdown}
                   action={
-                    isAdded ? (
-                      <Badge tone="emerald">
-                        <Icon.Check size={12} /> בפייפליין
-                      </Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        loading={busyId === match.candidateId}
-                        onClick={() => addToPipeline(match)}
-                        className={cx('shrink-0')}
-                      >
-                        הוספה לפייפליין
-                      </Button>
-                    )
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {match.candidate.phone && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={messagingId === match.candidateId}
+                          onClick={() => messageOnWhatsApp(match)}
+                          icon={<Icon.Chat size={14} />}
+                        >
+                          וואטסאפ
+                        </Button>
+                      )}
+                      {isAdded ? (
+                        <Badge tone="emerald">
+                          <Icon.Check size={12} /> בפייפליין
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          loading={busyId === match.candidateId}
+                          onClick={() => addToPipeline(match)}
+                          className={cx('shrink-0')}
+                        >
+                          הוספה לפייפליין
+                        </Button>
+                      )}
+                    </div>
                   }
                 />
               </li>
