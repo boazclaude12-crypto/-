@@ -143,7 +143,7 @@ const LOCAL_HEADER = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 const CENTRAL_HEADER = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
 
 /** Minimal ZIP reader: walks local file headers and inflates the entry we need. */
-function readZipEntry(buffer: Buffer, wantedName: string): Buffer | null {
+export function readZipEntry(buffer: Buffer, wantedName: string): Buffer | null {
   let offset = 0;
   while (offset >= 0 && offset < buffer.length - 30) {
     if (buffer.readUInt32LE(offset) !== 0x04034b50) {

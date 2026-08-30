@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Badge, Button, Card, ErrorNote, Spinner, Tabs, cx } from '../ui';
 import { Icon } from '../ui/icons';
 import { CandidateForm, EMPTY_CANDIDATE, type CandidateFormValues } from '../forms/CandidateForm';
+import { ImportSheetFlow } from './ImportSheetFlow';
 import { api, errorMessage } from '@/lib/client/api';
 import { useToast } from '../ui/Toast';
 
@@ -90,7 +91,7 @@ function toFormValues(form: NonNullable<ParsedCvResponse['form']>): Partial<Cand
 export function NewCandidateFlow({ onDone }: { onDone?: () => void } = {}) {
   const router = useRouter();
   const toast = useToast();
-  const [tab, setTab] = useState<'cv' | 'manual'>('cv');
+  const [tab, setTab] = useState<'cv' | 'sheet' | 'manual'>('cv');
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ParsedCvResponse | null>(null);
   const [prefill, setPrefill] = useState<Partial<CandidateFormValues> | null>(null);
@@ -177,11 +178,14 @@ export function NewCandidateFlow({ onDone }: { onDone?: () => void } = {}) {
       <Tabs
         tabs={[
           { key: 'cv', label: 'מקורות חיים' },
+          { key: 'sheet', label: 'מאקסל' },
           { key: 'manual', label: 'הזנה ידנית' },
         ]}
         active={tab}
-        onChange={(key) => setTab(key as 'cv' | 'manual')}
+        onChange={(key) => setTab(key as 'cv' | 'sheet' | 'manual')}
       />
+
+      {tab === 'sheet' && <ImportSheetFlow onDone={onDone} />}
 
       {tab === 'cv' && !prefill && (
         <Card>
