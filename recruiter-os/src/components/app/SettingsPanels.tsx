@@ -235,6 +235,29 @@ export function DemoDataCard({ hasData }: { hasData: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [confirm, setConfirm] = useState('');
+
+  /**
+   * Empties the account so real work can start on a clean one.
+   *
+   * Demo data cannot simply be told apart from real data once both are present, so this
+   * removes everything — which is why it asks for a typed word instead of a button press.
+   */
+  async function clearAll() {
+    setClearing(true);
+    try {
+      const result = await api.post<{ removed: number }>('/api/account/reset', { confirm });
+      toast.success(`נמחקו ${result.removed} רשומות. החשבון ריק ומוכן.`);
+      setConfirm('');
+      router.push('/dashboard');
+      router.refresh();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setClearing(false);
+    }
+  }
 
   async function seed() {
     setBusy(true);
@@ -255,9 +278,41 @@ export function DemoDataCard({ hasData }: { hasData: boolean }) {
   return (
     <Card title="נתוני דמו">
       {hasData ? (
-        <p className="text-sm text-muted">
-          החשבון כבר מכיל נתונים, ולכן טעינת דמו חסומה — כדי שלא ידרוס לך עבודה אמיתית.
-        </p>
+        <>
+          <p className="text-sm text-muted">
+            החשבון מכיל נתונים, ולכן טעינת דמו חסומה — כדי שלא תדרוס עבודה אמיתית.
+          </p>
+
+          <div className="mt-3 rounded-xl border border-danger/30 bg-danger/5 p-3">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-danger">
+              <Icon.Alert size={14} />
+              התחלה מאפס
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              מוחק את <strong className="text-ink">כל</strong> המועמדים, המשרות, הלקוחות
+              והתהליכים — גם נתוני דמו וגם אמיתיים. אין דרך חזרה, אז כדאי להוריד גיבוי קודם.
+              החיבור לתיבת המייל יישאר, והפניות שבתיבה ייקלטו מחדש בסנכרון הבא.
+            </p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <Input
+                value={confirm}
+                onChange={(event) => setConfirm(event.target.value)}
+                placeholder='הקלד "מחק" לאישור'
+                className="w-44"
+                aria-label="אישור מחיקה"
+              />
+              <Button
+                variant="danger"
+                loading={clearing}
+                disabled={confirm.trim() !== 'מחק'}
+                onClick={clearAll}
+                icon={<Icon.Trash size={16} />}
+              >
+                מחיקת הכול
+              </Button>
+            </div>
+          </div>
+        </>
       ) : (
         <>
           <p className="text-sm text-muted">

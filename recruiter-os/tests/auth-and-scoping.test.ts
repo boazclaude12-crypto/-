@@ -217,3 +217,43 @@ describe('data export', () => {
     assert.equal(seenByA.length, 1);
   });
 });
+
+describe('starting the account over', () => {
+  test('removes this org data, restores the pipeline, and leaves other orgs alone', async () => {
+    const { seedDemoData } = await import('../src/lib/seed/demo');
+    const { bootstrapOrganization } = await import('../src/lib/domain/bootstrap');
+    const { getDb } = await import('../src/lib/db/index');
+    const db = getDb();
+
+    const mine = await createOrg();
+    const other = await createOrg();
+    seedDemoData(mine.orgId, mine.userId);
+    seedDemoData(other.orgId, other.userId);
+
+    const count = (table: string, orgId: string) =>
+      db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE org_id = ?`, orgId)!.n;
+
+    assert.ok(count('candidates', mine.orgId) > 50);
+    const otherBefore = count('candidates', other.orgId);
+
+    // The same order the reset endpoint uses.
+    const tables = [
+      'automation_runs', 'activity_events', 'messages', 'notes', 'tasks',
+      'payments', 'placements', 'interviews', 'applications',
+      'candidate_tags', 'job_tags', 'candidate_documents', 'candidate_attributes',
+      'candidate_experiences', 'job_requirements', 'email_messages',
+      'candidates', 'jobs', 'client_contacts', 'clients', 'automations', 'tags', 'stages',
+    ];
+    db.transaction(() => {
+      for (const table of tables) db.run(`DELETE FROM ${table} WHERE org_id = ?`, mine.orgId);
+      bootstrapOrganization(mine.orgId);
+    });
+
+    assert.equal(count('candidates', mine.orgId), 0);
+    assert.equal(count('jobs', mine.orgId), 0);
+    assert.equal(count('clients', mine.orgId), 0);
+    // An account with no pipeline is broken, not clean.
+    assert.ok(count('stages', mine.orgId) >= 5, 'the default stages must come back');
+    assert.equal(count('candidates', other.orgId), otherBefore, 'another org must be untouched');
+  });
+});
