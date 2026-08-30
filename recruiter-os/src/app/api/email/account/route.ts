@@ -52,6 +52,7 @@ export const GET = withAuth(async (_request, { auth }) => {
       last_sync_at: account.last_sync_at,
       last_status: account.last_status,
       last_error: account.last_error,
+      digest_hour: account.digest_hour,
       enabled: account.enabled === 1,
     },
   });

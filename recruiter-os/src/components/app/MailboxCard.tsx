@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge, Button, Card, ErrorNote, Field, Input, Spinner, cx } from '../ui';
+import { Badge, Button, Card, ErrorNote, Field, Input, Select, Spinner, cx } from '../ui';
 import { Icon } from '../ui/icons';
 import { api, errorMessage } from '../../lib/client/api';
 import { useToast } from '../ui/Toast';
@@ -16,6 +16,7 @@ interface AccountView {
   last_sync_at: string | null;
   last_status: string | null;
   last_error: string | null;
+  digest_hour: number | null;
 }
 
 interface SyncSummary {
@@ -73,6 +74,8 @@ export function MailboxCard() {
   const [summary, setSummary] = useState<SyncSummary | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [showLog, setShowLog] = useState(false);
+  const [savingDigest, setSavingDigest] = useState(false);
+  const [testingDigest, setTestingDigest] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', host: '', since_date: '' });
 
   async function load() {
@@ -140,6 +143,31 @@ export function MailboxCard() {
       setError(errorMessage(caught));
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function setDigestHour(hour: number | null) {
+    setSavingDigest(true);
+    try {
+      await api.patch('/api/email/digest', { hour });
+      toast.success(hour === null ? 'סיכום הבוקר כובה' : `הסיכום יישלח כל יום ב-${hour}:00`);
+      await load();
+    } catch (caught) {
+      toast.error(errorMessage(caught));
+    } finally {
+      setSavingDigest(false);
+    }
+  }
+
+  async function sendTestDigest() {
+    setTestingDigest(true);
+    try {
+      const result = await api.post<{ to: string }>('/api/email/digest');
+      toast.success(`נשלח ל-${result.to}`);
+    } catch (caught) {
+      toast.error(errorMessage(caught));
+    } finally {
+      setTestingDigest(false);
     }
   }
 
@@ -278,6 +306,43 @@ export function MailboxCard() {
       <p className="mt-2 text-xs text-faint">
         המערכת בודקת את התיבה כל רבע שעה גם בלי שתלחץ.
       </p>
+
+      <div className="mt-4 rounded-xl border border-line bg-canvas/50 p-3">
+        <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-ink">
+          <Icon.Clock size={14} className="text-faint" />
+          סיכום בוקר
+        </p>
+        <p className="mb-2.5 text-xs text-muted">
+          מייל יומי עם מה שצריך לטפל בו: מועמדים שמחכים לתשובה, ראיונות היום, משרות
+          שעומדות וכסף שלא נגבה. ביום שאין מה לדווח — לא נשלח כלום.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            options={[
+              { value: '', label: 'כבוי' },
+              ...Array.from({ length: 24 }, (_, hour) => ({
+                value: String(hour),
+                label: `${String(hour).padStart(2, '0')}:00`,
+              })),
+            ]}
+            value={account.digest_hour === null ? '' : String(account.digest_hour)}
+            disabled={savingDigest}
+            onChange={(event) =>
+              setDigestHour(event.target.value === '' ? null : Number(event.target.value))
+            }
+            className="w-32"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={testingDigest}
+            onClick={sendTestDigest}
+            icon={<Icon.Mail size={14} />}
+          >
+            שלח לי עכשיו
+          </Button>
+        </div>
+      </div>
 
       {showLog && (
         <ul className="mt-3 divide-y divide-line rounded-xl border border-line">

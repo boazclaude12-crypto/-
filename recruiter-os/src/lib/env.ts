@@ -45,6 +45,21 @@ export const env = {
   get anthropicModel() {
     return process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5';
   },
+  /**
+   * Public address of this deployment, used for links in outgoing mail.
+   *
+   * Railway and Render both expose the assigned domain, so the common deployment needs
+   * no configuration; APP_URL overrides it for a custom domain.
+   */
+  get appUrl() {
+    const explicit = process.env.APP_URL?.trim();
+    if (explicit) return explicit.replace(/\/+$/, '');
+    const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+    if (railway) return `https://${railway}`;
+    const render = process.env.RENDER_EXTERNAL_URL?.trim();
+    if (render) return render.replace(/\/+$/, '');
+    return 'http://localhost:3100';
+  },
   get isProduction() {
     return process.env.NODE_ENV === 'production';
   },

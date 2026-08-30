@@ -372,6 +372,12 @@ export interface EmailAccountRow {
   /** AES-256-GCM ciphertext — never the password itself. */
   password_enc: string;
   folder: string;
+  /** Sending server; derived from the reading host when empty. */
+  smtp_host: string | null;
+  smtp_port: number;
+  /** Local hour to send the daily brief at. Null means the brief is off. */
+  digest_hour: number | null;
+  last_digest_on: string | null;
   since_date: string | null;
   last_sync_at: string | null;
   last_status: string | null;

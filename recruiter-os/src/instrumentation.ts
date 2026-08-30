@@ -63,6 +63,15 @@ function startMailboxSync() {
           console.log(`[recruiter-os] נקלטו ${result.summary.imported} מועמדים מהמייל (${result.orgId})`);
         }
       }
+
+      // The brief goes out after the sync, so it counts what just arrived.
+      const { runDueDigests } = await import('@/lib/email/digest');
+      for (const digest of await runDueDigests()) {
+        if (digest.sent) console.log(`[recruiter-os] נשלח סיכום בוקר (${digest.orgId})`);
+        else if (digest.reason && !/אין מה לדווח|כבר נשלח|כבוי/.test(digest.reason)) {
+          console.error(`[recruiter-os] סיכום בוקר נכשל (${digest.orgId}): ${digest.reason}`);
+        }
+      }
     } catch (caught) {
       // A failed sync must never take the web server down with it.
       console.error('[recruiter-os] סנכרון מייל נכשל:', caught);
