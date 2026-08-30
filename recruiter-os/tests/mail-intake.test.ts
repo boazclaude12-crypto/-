@@ -119,3 +119,38 @@ describe('mailbox intake', () => {
     assert.equal(outcome.candidateId, null);
   });
 });
+
+describe('a CV that arrives as a photo', () => {
+  // The most common form an application takes when it comes off WhatsApp.
+  const PHOTO = {
+    // A minimal JPEG header — enough for the type checks that matter here.
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]),
+    fileName: 'IMG-20260830-WA0007.jpg',
+    mimeType: 'image/jpeg',
+  };
+
+  test('is kept and attached, not discarded', async () => {
+    const { orgId, userId } = await createOrg();
+    const outcome = await intake(orgId, userId, ALLJOBS_BODY, PHOTO);
+
+    assert.equal(outcome.status, 'created');
+    const detail = getCandidateDetail(orgId, outcome.candidateId!)!;
+    assert.equal(detail.candidate.first_name, 'ערן');
+    assert.equal(detail.documents.length, 1, 'the picture must stay on the record');
+    assert.equal(detail.documents[0]!.file_name, 'IMG-20260830-WA0007.jpg');
+  });
+
+  test('says the details are missing because nobody could read them', async () => {
+    const { orgId, userId } = await createOrg();
+    const outcome = await intake(orgId, userId, ALLJOBS_BODY, PHOTO);
+    assert.ok(outcome.reason?.includes('תמונה'), outcome.reason ?? '(none)');
+  });
+
+  test('a photo with no accompanying details is not filed as an empty candidate', async () => {
+    const { orgId, userId } = await createOrg();
+    const { importApplication } = await import('../src/lib/domain/cv-intake');
+    const outcome = await importApplication(orgId, userId, { document: PHOTO, hints: {} });
+    assert.equal(outcome.status, 'unreadable');
+    assert.equal(outcome.candidateId, null);
+  });
+});

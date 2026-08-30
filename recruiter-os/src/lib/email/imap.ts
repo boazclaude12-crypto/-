@@ -25,8 +25,13 @@ export interface FetchedMessage {
   attachments: FetchedAttachment[];
 }
 
-/** Extensions the CV importer can actually read; anything else is not worth downloading. */
-const CV_EXTENSIONS = /\.(pdf|docx|txt|rtf)$/i;
+/**
+ * Attachments worth pulling down.
+ *
+ * Wider than what the parser can read: a photographed CV forwarded from WhatsApp is a
+ * real application, and dropping it at the mailbox would lose the lead entirely.
+ */
+const CV_EXTENSIONS = /\.(pdf|docx|doc|txt|rtf|jpe?g|png|webp|heic|heif)$/i;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 /**

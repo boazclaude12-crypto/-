@@ -241,6 +241,15 @@ export function extractText(buffer: Buffer, mimeType: string, fileName = ''): Ex
     if (type.startsWith('text/') || lowerName.endsWith('.txt')) {
       return { status: 'parsed', text: cleanup(buffer.toString('utf8')) };
     }
+    if (type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(lowerName)) {
+      // Kept, not read. Saying why matters: the recruiter needs to know the details were
+      // not filled in because nobody could read them, not because the file was lost.
+      return {
+        status: 'unsupported',
+        text: '',
+        reason: 'קורות חיים כתמונה — הקובץ נשמר, אבל אי אפשר לקרוא ממנו פרטים אוטומטית.',
+      };
+    }
     if (lowerName.endsWith('.doc')) {
       return {
         status: 'unsupported',

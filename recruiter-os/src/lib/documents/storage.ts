@@ -5,7 +5,18 @@ import { newId } from '../ids';
 import { ApiError } from '../errors';
 import { MAX_UPLOAD_BYTES } from './extract';
 
-const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.txt', '.rtf', '.doc']);
+/**
+ * Files worth keeping on a candidate, which is a wider set than the files we can read.
+ *
+ * A CV photographed and sent on WhatsApp is the most common form an application takes on
+ * a staffing desk, and no parser will ever read it. Storing it anyway keeps the lead: the
+ * recruiter opens the picture and reads it themselves, which is what they would have done
+ * in WhatsApp regardless.
+ */
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf', '.docx', '.txt', '.rtf', '.doc',
+  '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif',
+]);
 
 export interface StoredFile {
   storedName: string;
@@ -31,7 +42,7 @@ export async function storeUpload(orgId: string, file: File): Promise<StoredFile
   const originalName = path.basename(file.name || 'cv').replace(/[\u0000-\u001F\/\\]/g, '').slice(0, 160);
   const extension = path.extname(originalName).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(extension)) {
-    throw new ApiError(415, 'סוג קובץ לא נתמך. נתמכים: PDF, DOCX, TXT, RTF.');
+    throw new ApiError(415, 'סוג קובץ לא נתמך. נתמכים: PDF, DOCX, TXT, RTF ותמונות.');
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
