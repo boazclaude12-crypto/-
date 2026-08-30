@@ -133,3 +133,58 @@ describe('document text extraction', () => {
     assert.ok(result.reason);
   });
 });
+
+describe('real-world CV shapes', () => {
+  const DRIVER_CV = `ערן ברוך
+נהג חלוקה
+טלפון: 050-4050773
+דוא"ל: eran.baruch@example.com
+כתובת: תל מונד
+
+ניסיון תעסוקתי
+נהג 12 טון, תובלה ישראלית, 2018 - היום
+חלוקה לסניפי רשת בכל הארץ, אחריות על טעינה ופריקה.
+נהג חלוקה, מחסני הצפון, 2014 - 2018
+
+רישיונות
+רישיון נהיגה C
+רישיון מלגזה
+בעל רכב פרטי
+
+השכלה
+תיכונית + בגרות מלאה`;
+
+  test('a description line is not counted as a job of its own', () => {
+    const parsed = parseCvText(DRIVER_CV);
+    assert.equal(parsed.experiences.length, 2, JSON.stringify(parsed.experiences.map((e) => e.title)));
+    assert.ok(!parsed.experiences.some((e) => e.title.includes('חלוקה לסניפי')), 'that line describes the job above it');
+  });
+
+  test('a town stated under a label is captured even in prose', () => {
+    assert.equal(parseCvText(DRIVER_CV).city, 'תל מונד');
+  });
+
+  test('a town the gazetteer does not know is still recorded', () => {
+    // Better to hold an unknown town — the match then honestly reports the distance as
+    // unknown — than to drop the field and know nothing at all.
+    const parsed = parseCvText('דנה כהן\nטלפון: 052-1234567\nכתובת: כפר קטן שאין בגזטיר');
+    assert.equal(parsed.city, 'כפר קטן שאין בגזטיר');
+  });
+
+  test('driving details drive the commute radius', () => {
+    const parsed = parseCvText(DRIVER_CV);
+    assert.equal(parsed.has_car, true);
+    assert.deepEqual(parsed.licenses, ['רישיון C']);
+  });
+});
+
+describe('gazetteer coverage', () => {
+  test('the towns a staffing desk actually sees resolve to a distance', async () => {
+    const { distanceKm } = await import('../src/lib/geo');
+    // Every one of these appeared in a real application; an unknown town silently
+    // switches off the commute rules, which is the failure mode worth a test.
+    for (const town of ['תל מונד', 'הרצליה', 'רמת גן', 'חולון', 'נתניה', 'כרמיאל', 'תל אביב']) {
+      assert.notEqual(distanceKm(town, 'תל אביב'), null, `${town} is not in the gazetteer`);
+    }
+  });
+});

@@ -154,13 +154,21 @@ function parseYear(value: string | undefined): number | null {
 function parseExperiences(section: string[] | undefined): ParsedExperience[] {
   if (!section?.length) return [];
   const experiences: ParsedExperience[] = [];
+  // Lines already taken as the description of the entry above them. Without this a
+  // description gets counted a second time as a job of its own, and the CV grows a
+  // position the candidate never held.
+  const consumed = new Set<number>();
 
   for (let i = 0; i < section.length; i += 1) {
+    if (consumed.has(i)) continue;
     const line = section[i]!;
     const range = line.match(MONTH_RANGE_RE);
     // An entry is a line that carries a date range or an explicit company/title separator.
     const parts = line.split(/\s+[|–—-]\s+|\s*,\s*(?=[^\d])/).map((p) => p.trim()).filter(Boolean);
     if (!range && parts.length < 2) continue;
+    // Hebrew prose is full of commas, so a comma alone does not make a line an entry.
+    // A trailing full stop marks a sentence — a description, not a job header.
+    if (!range && /[.!?]\s*$/.test(line)) continue;
 
     const withoutDates = line.replace(MONTH_RANGE_RE, '').replace(/[|–—-]\s*$/, '').trim();
     const fields = withoutDates.split(/\s+[|–—-]\s+|\s*,\s*/).map((p) => p.trim()).filter(Boolean);
@@ -171,6 +179,7 @@ function parseExperiences(section: string[] | undefined): ParsedExperience[] {
     const isCurrent = Boolean(range && /היום|כיום|present|current|now/i.test(range[3] ?? ''));
     const next = section[i + 1];
     const description = next && !MONTH_RANGE_RE.test(next) && next.length > 30 ? next : null;
+    if (description) consumed.add(i + 1);
 
     experiences.push({
       company: company === title ? '' : company,
@@ -221,6 +230,24 @@ export function parseCvText(text: string): ParsedCv {
   const phone = phoneMatch ? normalizePhone(phoneMatch) : null;
   const { first, last } = detectName(allLines, email);
 
+  /**
+   * A town stated under an explicit label.
+   *
+   * The gazetteer cannot hold every locality in the country, and a candidate from one it
+   * has never heard of should still have their town on file — the match then reports the
+   * distance as unknown, which is true, rather than dropping the field and reporting
+   * nothing at all.
+   */
+  const labelledCity = (() => {
+    for (const line of allLines) {
+      const match = line.match(/^\s*(?:כתובת|עיר|יישוב|ישוב|מגורים|מקום\s+מגורים|address|city)\s*:\s*(.+)$/i);
+      if (!match?.[1]) continue;
+      const value = match[1].split(/[,|]/)[0]!.trim().replace(/[.\s]+$/, '');
+      if (value.length >= 2 && value.length <= 40) return value;
+    }
+    return null;
+  })();
+
   const city =
     allLines
       .flatMap((line) => line.split(/[\s,|]+/))
@@ -235,7 +262,7 @@ export function parseCvText(text: string): ParsedCv {
           if (place) return place.city;
         }
       }
-      return null;
+      return labelledCity;
     })();
 
   const licenses = Array.from(
