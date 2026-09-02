@@ -76,37 +76,48 @@ export default function Header() {
       <div className="container mx-auto px-4 py-4">
         {/* Desktop Header */}
         <div className="flex items-center justify-between">
-          <Link href={'/'}>
-            <div className="flex items-center gap-2 text-2xl font-bold text-amber-500">
+          <Link href={'/'} title="חזרה לדף הבית">
+            <div className="flex items-center gap-2 text-2xl font-bold text-amber-500 hover:opacity-80 transition-opacity">
               <BarChart3 className="h-8 w-8" />
               אשף המסחר
             </div>
           </Link>
-          <div className="flex items-center gap-4">
+          {/* Every item carries its name. These were icon-only, which left a new
+              user guessing what a robot or a coin would do. Labels collapse to
+              icons plus tooltips on narrow screens, where space runs out. */}
+          <div className="flex items-center gap-2">
             <button
               onClick={askWizardButton}
-              className="flex items-center justify-center px-4 py-2 bg-amber-100 text-amber-500 rounded-lg hover:bg-amber-200 transition-colors"
+              title="שאל את האשף — צ'אט עם הבינה המלאכותית"
+              className="flex items-center gap-2 px-3 py-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
             >
-              <Bot className="h-5 w-5" />
+              <Bot className="h-5 w-5 flex-shrink-0" />
+              <span className="hidden lg:inline text-sm font-medium whitespace-nowrap">שאל את האשף</span>
             </button>
-            
-            <Link href="/coin" className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 hover:shadow-md hover:scale-105 group transition-all duration-200">
-              <Coins className="h-5 w-5 group-hover:animate-pulse" />
-              <span className="relative after:absolute after:bottom-0 after:left-0 after:bg-amber-600 after:h-0.5 after:w-0 group-hover:after:w-full after:transition-all after:duration-300"></span>
-            </Link>
 
-            <Link href="/calculator" className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 hover:shadow-md hover:scale-105 group transition-all duration-200">
-              <Calculator className="h-5 w-5 group-hover:animate-pulse" />
-              <span className="relative after:absolute after:bottom-0 after:left-0 after:bg-amber-600 after:h-0.5 after:w-0 group-hover:after:w-full after:transition-all after:duration-300"></span>
-            </Link>
-            
-            <Link href="/stats" title="סטטיסטיקה ומעקב עסקאות" className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 hover:shadow-md hover:scale-105 group transition-all duration-200">
-              <BarChart3 className="h-5 w-5 group-hover:animate-pulse" />
-              <span className="relative after:absolute after:bottom-0 after:left-0 after:bg-amber-600 after:h-0.5 after:w-0 group-hover:after:w-full after:transition-all after:duration-300"></span>
-            </Link>
+            {[
+              { href: "/stats", Icon: BarChart3, label: "סטטיסטיקה", title: "יומן עסקאות וסטטיסטיקת ביצועים" },
+              { href: "/calculator", Icon: Calculator, label: "מחשבון", title: "מחשבון רווח והפסד" },
+              { href: "/coin", Icon: Coins, label: "יצירת מטבע", title: "יצירת מטבע חדש" },
+            ].map(({ href, Icon, label, title }) => (
+              <Link
+                key={href}
+                href={href}
+                title={title}
+                className="flex items-center gap-2 px-3 py-2 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 hover:shadow-md transition-all duration-200"
+              >
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                <span className="hidden lg:inline text-sm font-medium whitespace-nowrap">{label}</span>
+              </Link>
+            ))}
 
-            <a href="/profile" className="text-gray-600 hover:text-gray-900">
-              <User className="h-5 w-5" />
+            <a
+              href="/profile"
+              title="הפרופיל והמנוי שלי"
+              className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <User className="h-5 w-5 flex-shrink-0" />
+              <span className="hidden lg:inline text-sm font-medium whitespace-nowrap">פרופיל</span>
             </a>
             <LogoutButton />
           </div>
@@ -125,7 +136,7 @@ export default function Header() {
               className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-100 text-amber-500 rounded-lg hover:bg-amber-200 transition-colors w-full"
             >
               <Bot className="h-5 w-5" />
-              <span className="font-medium"></span>
+              <span className="font-medium">שאל את האשף</span>
             </button>
             
             <Link 
@@ -135,7 +146,7 @@ export default function Header() {
             >
               <span className="absolute inset-0 bg-gradient-to-r from-amber-200/50 to-amber-100/30 w-full transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500"></span>
               <Coins className="h-5 w-5 relative z-10" />
-              <span className="font-medium relative z-10"></span>
+              <span className="font-medium relative z-10">יצירת מטבע</span>
               <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">✨</span>
             </Link>
 
