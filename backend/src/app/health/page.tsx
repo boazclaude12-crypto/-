@@ -77,6 +77,64 @@ export default async function HealthPage() {
     connection = { ok: false, detail: e?.message ?? "החיבור נכשל" };
   }
 
+  // Chart analysis needs three things beyond the database: a valid OpenAI key,
+  // an assistant that key can actually see, and a storage bucket to hold the
+  // upload. A failure in any of them surfaces as the same generic error in the
+  // UI, so check each one directly.
+  const analysisChecks: Array<{ name: string; ok: boolean; detail: string }> = [];
+
+  const openaiKey = process.env.NET_PUBLIC_SITE_URL_OPENAI_API_KEY;
+  const assistantId = process.env.NEXT_PUBLIC_SITE_OPENAI_ASSISTANT_ID;
+
+  if (!openaiKey || !assistantId) {
+    analysisChecks.push({ name: "openai", ok: false, detail: "חסר מפתח או מזהה Assistant" });
+  } else {
+    try {
+      const res: any = await withTimeout(
+        fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
+          headers: { Authorization: `Bearer ${openaiKey}`, "OpenAI-Beta": "assistants=v2" },
+          cache: "no-store",
+        })
+      );
+      if (res?.timedOut) {
+        analysisChecks.push({ name: "openai", ok: false, detail: "אין תשובה מ-OpenAI" });
+      } else if (res.status === 200) {
+        const body = await res.json().catch(() => ({}));
+        analysisChecks.push({
+          name: "openai",
+          ok: true,
+          detail: `המפתח תקין, ה-Assistant נמצא (מודל: ${body?.model ?? "?"})`,
+        });
+      } else if (res.status === 401) {
+        analysisChecks.push({ name: "openai", ok: false, detail: "המפתח נדחה (401) — מפתח לא תקין או שפג" });
+      } else if (res.status === 404) {
+        analysisChecks.push({
+          name: "openai",
+          ok: false,
+          detail: "ה-Assistant לא נמצא (404) — הוא שייך לחשבון OpenAI אחר",
+        });
+      } else {
+        analysisChecks.push({ name: "openai", ok: false, detail: `OpenAI החזיר ${res.status}` });
+      }
+    } catch (e: any) {
+      analysisChecks.push({ name: "openai", ok: false, detail: e?.message ?? "הבדיקה נכשלה" });
+    }
+  }
+
+  try {
+    const supabase = await createClient();
+    const res: any = await withTimeout(supabase.storage.from("images").list("", { limit: 1 }));
+    if (res?.timedOut) {
+      analysisChecks.push({ name: "storage (images)", ok: false, detail: "אין תשובה" });
+    } else if (res.error) {
+      analysisChecks.push({ name: "storage (images)", ok: false, detail: res.error.message });
+    } else {
+      analysisChecks.push({ name: "storage (images)", ok: true, detail: "ה-bucket קיים ונגיש" });
+    }
+  } catch (e: any) {
+    analysisChecks.push({ name: "storage (images)", ok: false, detail: e?.message ?? "הבדיקה נכשלה" });
+  }
+
   const Row = ({ ok, name, detail }: { ok: boolean; name: string; detail: string }) => (
     <div style={{
       display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center",
@@ -114,6 +172,9 @@ export default async function HealthPage() {
 
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: "28px 0 12px" }}>טבלאות</h2>
         {tableChecks.map(c => <Row key={c.name} {...c} />)}
+
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "28px 0 12px" }}>ניתוח גרפים</h2>
+        {analysisChecks.map(c => <Row key={c.name} {...c} />)}
 
         <p style={{ color: "#555", fontSize: 12, marginTop: 32 }}>
           לא נחשפים כאן ערכים סודיים — רק האם הם מוגדרים.
