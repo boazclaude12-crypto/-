@@ -1011,12 +1011,18 @@ function Home() {
             <div className="md:col-span-1">
               <h3 className={`text-sm font-bold mb-4 ${rubik.className}`} style={{ color: '#fff' }}>משפטי</h3>
               <ul className="space-y-3">
-                <li>
-                  <Link href="/terms" className="text-sm flex items-center gap-2" style={{ color: '#666' }}>
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#F0B90B' }}></div>
-                    תקנון ותנאי שימוש
-                  </Link>
-                </li>
+                {[
+                  { href: '/terms', label: 'תקנון ותנאי שימוש' },
+                  { href: '/app-terms', label: 'תנאי שימוש באפליקציה' },
+                  { href: '/privacy', label: 'מדיניות פרטיות' },
+                ].map(({ href, label }) => (
+                  <li key={href}>
+                    <Link href={href} className="text-sm flex items-center gap-2" style={{ color: '#666' }}>
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#F0B90B' }}></div>
+                      {label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 
