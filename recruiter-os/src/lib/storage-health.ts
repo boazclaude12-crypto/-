@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { env } from './env';
+import { getDb } from './db/index';
 
 export interface StorageHealth {
   /** Directory holding the database and the uploaded CVs. */
@@ -36,31 +37,22 @@ function isMountPoint(dir: string): boolean {
   }
 }
 
-function directorySize(dir: string): { bytes: number; files: number } {
-  let bytes = 0;
-  let files = 0;
-  const walk = (current: string) => {
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else {
-        try {
-          bytes += fs.statSync(full).size;
-          files += 1;
-        } catch {
-          /* removed between readdir and stat */
-        }
-      }
-    }
-  };
-  walk(dir);
-  return { bytes, files };
+/**
+ * How much the stored CVs occupy, read from the database rather than the disk.
+ *
+ * Every upload records its own size, so the answer is a single sum. Walking the directory
+ * instead meant a stat() per file on every load of a page that never caches — which on a
+ * container disk blocks the event loop for the whole server, not just the page asking.
+ */
+function uploadUsage(): { bytes: number; files: number } {
+  try {
+    const row = getDb().get<{ bytes: number | null; files: number }>(
+      'SELECT COALESCE(SUM(size_bytes), 0) AS bytes, COUNT(*) AS files FROM candidate_documents',
+    );
+    return { bytes: row?.bytes ?? 0, files: row?.files ?? 0 };
+  } catch {
+    return { bytes: 0, files: 0 };
+  }
 }
 
 /**
@@ -90,7 +82,7 @@ function sizeOf(file: string): number {
 export function storageHealth(): StorageHealth {
   const databaseFile = path.resolve(env.databaseFile);
   const dataDir = path.dirname(databaseFile);
-  const uploads = directorySize(env.uploadDir);
+  const uploads = uploadUsage();
   const capacity = capacityOf(dataDir);
 
   return {

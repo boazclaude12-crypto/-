@@ -80,6 +80,11 @@ export async function syncMailbox(
     });
 
     for (const message of messages) {
+      // Reading a CV is synchronous work — inflating a document, running the parser over
+      // it — and this process also serves every page. Without yielding between messages a
+      // sync of thirty attachments freezes the site for whoever is using it.
+      await new Promise((resolve) => setImmediate(resolve));
+
       summary.scanned += 1;
       const intake = parseIntakeEmail({
         subject: message.subject,

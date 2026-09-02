@@ -26,6 +26,10 @@ export const POST = withAuth(async (request, { auth }) => {
 
   const results: BulkImportRow[] = [];
   for (const file of files) {
+    // Same reason as the mailbox sync: parsing is synchronous, and forty files in a row
+    // would hold the event loop for everyone else using the app.
+    await new Promise((resolve) => setImmediate(resolve));
+
     if (file.size > MAX_UPLOAD_BYTES) {
       results.push({
         fileName: file.name, status: 'unreadable', candidateId: null, name: null,
