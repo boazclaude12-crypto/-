@@ -75,6 +75,20 @@ export async function POST(request: Request) {
       imageBuffer = Buffer.from(await file.arrayBuffer());
     }
 
+    // The client already surfaces this exact message, but nothing enforced the
+    // limit, so an oversized upload went straight to the vision model — billed
+    // per image — and to storage. Reject it here instead.
+    const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    if (imageBuffer.byteLength > MAX_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: "Image size must be less than 5MB", message: "Image size must be less than 5MB" },
+        { status: 400 }
+      );
+    }
+    if (imageBuffer.byteLength === 0) {
+      return NextResponse.json({ error: "missing_image", message: "Image is empty" }, { status: 400 });
+    }
+
     const assetNameSliced = assetName.length > 10 ? assetName.slice(0, 10) : assetName;
 
     // Upload image to Supabase Storage
