@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
 import supabaseAdmin from '../../../../../lib/supabase/supabaseAdmin';
+import { requireAdmin } from '@lib/supabase/adminAuth';
 
 export async function GET(request: Request) {
-  const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-  const authHeader = request.headers.get('authorization');
-  
-  // Check admin password from header
-  if (!authHeader || authHeader !== `Bearer ${adminPassword}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const guard = await requireAdmin(request);
+  if (!guard.ok) return guard.response;
   
   try {
     // Get summary statistics in parallel

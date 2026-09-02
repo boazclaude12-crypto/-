@@ -47,8 +47,13 @@ create table if not exists public.user_profiles (
   plan_id             bigint references public.plans(id),
   recurring_is_active boolean not null default false,
   disable_date        timestamptz,
+  is_admin            boolean not null default false,
   created_at          timestamptz not null default now()
 );
+
+-- Existing deployments predate is_admin.
+alter table public.user_profiles
+  add column if not exists is_admin boolean not null default false;
 
 create index if not exists user_profiles_user_idx on public.user_profiles (user_id);
 
@@ -59,6 +64,11 @@ create policy "profiles_select_own" on public.user_profiles
 drop policy if exists "profiles_update_own" on public.user_profiles;
 create policy "profiles_update_own" on public.user_profiles
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- profiles_update_own lets a user write their own row, which would otherwise
+-- let anyone grant themselves is_admin. RLS cannot scope a policy to a column,
+-- so withhold the column itself; only the service role may set it.
+revoke update (is_admin) on public.user_profiles from authenticated, anon;
 
 -- Every new signup needs a profile immediately, otherwise the first API call
 -- reports "No plan found". A trigger is the only place that reliably fires for

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@lib/supabase/adminAuth';
 
 function getSupabase() {
   return createClient(
@@ -11,13 +12,8 @@ function getSupabase() {
 // PUT endpoint to update user details
 export async function PUT(request: NextRequest) {
   try {
-    // Verify admin authorization
-    const authHeader = request.headers.get('authorization') || '';
-    const token = authHeader.split(' ')[1];
-    
-    if (token !== process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
 
     // Get user ID from URL
     const userId = request.url.split('/users/')[1].split('/')[0];
