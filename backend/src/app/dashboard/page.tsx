@@ -624,9 +624,11 @@ export default function Dashboard() {
               }
             });
           } else {
+            // Show what the server actually said. Collapsing every unrecognised
+            // failure into one message hid the cause and left nothing to act on.
             await Swal.fire({
               title: 'שגיאה',
-              text: 'לא ניתן לנתח את התמונה כרגע, אנא נסה שוב מאוחר יותר',
+              text: data?.message || data?.error || 'לא ניתן לנתח את התמונה כרגע, אנא נסה שוב מאוחר יותר',
               icon: 'error',
               confirmButtonText: 'הבנתי',
               confirmButtonColor: '#4F46E5',

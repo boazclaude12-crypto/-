@@ -84,40 +84,41 @@ export default async function HealthPage() {
   const analysisChecks: Array<{ name: string; ok: boolean; detail: string }> = [];
 
   const openaiKey = process.env.NET_PUBLIC_SITE_URL_OPENAI_API_KEY;
-  const assistantId = process.env.NEXT_PUBLIC_SITE_OPENAI_ASSISTANT_ID;
+  const analysisModel = process.env.OPENAI_ANALYSIS_MODEL || "gpt-4o";
 
-  if (!openaiKey || !assistantId) {
-    analysisChecks.push({ name: "openai", ok: false, detail: "חסר מפתח או מזהה Assistant" });
+  if (!openaiKey) {
+    analysisChecks.push({ name: "openai", ok: false, detail: "חסר מפתח OpenAI" });
   } else {
+    // Analysis needs this key to be able to reach this specific model, so ask
+    // about the model itself rather than about an assistant the code no longer
+    // uses. Each status maps to a different fix, so report them apart.
     try {
       const res: any = await withTimeout(
-        fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
-          headers: { Authorization: `Bearer ${openaiKey}`, "OpenAI-Beta": "assistants=v2" },
+        fetch(`https://api.openai.com/v1/models/${analysisModel}`, {
+          headers: { Authorization: `Bearer ${openaiKey}` },
           cache: "no-store",
         })
       );
       if (res?.timedOut) {
-        analysisChecks.push({ name: "openai", ok: false, detail: "אין תשובה מ-OpenAI" });
+        analysisChecks.push({ name: `openai (${analysisModel})`, ok: false, detail: "אין תשובה מ-OpenAI" });
       } else if (res.status === 200) {
-        const body = await res.json().catch(() => ({}));
         analysisChecks.push({
-          name: "openai",
+          name: `openai (${analysisModel})`,
           ok: true,
-          detail: `המפתח תקין, ה-Assistant נמצא (מודל: ${body?.model ?? "?"})`,
-        });
-      } else if (res.status === 401) {
-        analysisChecks.push({ name: "openai", ok: false, detail: "המפתח נדחה (401) — מפתח לא תקין או שפג" });
-      } else if (res.status === 404) {
-        analysisChecks.push({
-          name: "openai",
-          ok: false,
-          detail: "ה-Assistant לא נמצא (404) — הוא שייך לחשבון OpenAI אחר",
+          detail: "המפתח תקין והמודל זמין",
         });
       } else {
-        analysisChecks.push({ name: "openai", ok: false, detail: `OpenAI החזיר ${res.status}` });
+        const body = await res.json().catch(() => ({}));
+        const apiMsg = body?.error?.message ? ` — ${body.error.message}` : "";
+        const detail =
+          res.status === 401 ? `המפתח נדחה (401) — לא תקין או שפג${apiMsg}`
+          : res.status === 404 ? `המודל ${analysisModel} לא זמין לחשבון הזה (404)${apiMsg}`
+          : res.status === 429 ? `אין יתרה או חריגה ממכסה (429)${apiMsg}`
+          : `OpenAI החזיר ${res.status}${apiMsg}`;
+        analysisChecks.push({ name: `openai (${analysisModel})`, ok: false, detail });
       }
     } catch (e: any) {
-      analysisChecks.push({ name: "openai", ok: false, detail: e?.message ?? "הבדיקה נכשלה" });
+      analysisChecks.push({ name: `openai (${analysisModel})`, ok: false, detail: e?.message ?? "הבדיקה נכשלה" });
     }
   }
 
