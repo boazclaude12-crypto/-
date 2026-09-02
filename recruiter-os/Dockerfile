@@ -1,0 +1,42 @@
+# Recruiter OS — single long-running Node process with a persistent data volume.
+# The database and uploaded CVs both live under /app/data, so that path must be a
+# mounted volume; without it they are wiped on every deploy.
+FROM node:22.22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:22.22-alpine AS runtime
+WORKDIR /app
+# su-exec lets the entrypoint fix the volume's ownership as root and then hand the
+# process to the unprivileged user.
+RUN apk add --no-cache su-exec
+ENV NODE_ENV=production
+ENV DATABASE_FILE=/app/data/recruiter.db
+ENV UPLOAD_DIR=/app/data/uploads
+# PORT is deliberately NOT set here. Hosts like Railway, Render and Fly inject it,
+# and a baked-in value can win over theirs — the app would then listen on a port
+# nothing routes to. Unset, `next start` uses $PORT when present and 3000 otherwise.
+
+COPY --from=build /app/package.json /app/package-lock.json /app/next.config.mjs ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/db ./db
+
+COPY --from=build /app/docker-entrypoint.sh ./docker-entrypoint.sh
+
+# Migrations run automatically on the first database connection.
+# No VOLUME instruction: Railway rejects Dockerfiles that declare one and wants the
+# mount configured on its side instead. Other hosts mount over this directory just
+# as happily, so creating it here is all that is needed anywhere.
+RUN chmod +x /app/docker-entrypoint.sh \
+ && mkdir -p /app/data && chown -R node:node /app/data
+EXPOSE 3000
+# The entrypoint drops to the `node` user; it stays root only long enough to claim
+# the mounted volume. No -p flag on purpose: `next start` binds to $PORT, so the
+# host controls it.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["npx", "next", "start"]

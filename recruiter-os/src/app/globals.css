@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens. Light is the default; dark follows the OS setting. */
+:root {
+  --c-bg: 248 250 252;
+  --c-surface: 255 255 255;
+  --c-raised: 255 255 255;
+  --c-line: 226 232 240;
+  --c-ink: 15 23 42;
+  --c-muted: 71 85 105;
+  --c-faint: 148 163 184;
+  --c-brand: 37 99 235;
+  --c-brand-soft: 239 246 255;
+  --c-brand-ink: 255 255 255;
+  --c-ok: 16 185 129;
+  --c-warn: 245 158 11;
+  --c-danger: 225 29 72;
+  --c-info: 14 165 233;
+  --font-ui: 'Rubik', 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Chart palette — validated with the dataviz palette checker against the light
+     surface (#ffffff): lightness band, chroma floor, CVD separation, contrast.
+     The amber slot sits below 3:1, so charts using it always carry direct value
+     labels plus a table view. */
+  --chart-1: 37 99 235;
+  --chart-2: 245 158 11;
+  --chart-grid: 226 232 240;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --c-bg: 9 11 16;
+    --c-surface: 17 21 29;
+    --c-raised: 23 28 38;
+    --c-line: 39 46 60;
+    --c-ink: 237 241 247;
+    --c-muted: 156 168 186;
+    --c-faint: 106 118 136;
+    --c-brand: 96 145 255;
+    --c-brand-soft: 25 36 60;
+    --c-brand-ink: 8 12 20;
+
+    /* Re-stepped for the dark surface (#11151d), not flipped — validated separately. */
+    --chart-1: 91 134 232;
+    --chart-2: 192 138 18;
+    --chart-grid: 39 46 60;
+  }
+}
+
+:root[data-theme='dark'] {
+  --c-bg: 9 11 16;
+  --c-surface: 17 21 29;
+  --c-raised: 23 28 38;
+  --c-line: 39 46 60;
+  --c-ink: 237 241 247;
+  --c-muted: 156 168 186;
+  --c-faint: 106 118 136;
+  --c-brand: 96 145 255;
+  --c-brand-soft: 25 36 60;
+  --c-brand-ink: 8 12 20;
+  --chart-1: 91 134 232;
+  --chart-2: 192 138 18;
+  --chart-grid: 39 46 60;
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--c-line));
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: rgb(var(--c-bg));
+    color: rgb(var(--c-ink));
+    font-family: var(--font-ui);
+    font-feature-settings: 'kern';
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Latin numerals stay LTR inside Hebrew text. */
+  .num {
+    direction: ltr;
+    unicode-bidi: embed;
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--c-line));
+    border-radius: 999px;
+    border: 3px solid rgb(var(--c-bg));
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-brand));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-surface shadow-card;
+  }
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-muted;
+  }
+  .hairline {
+    @apply border-b border-line;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-md bg-line/60;
+  }
+}
