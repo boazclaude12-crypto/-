@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, User, Bot, Coins, Menu, X, Calculator } from "lucide-react";
+import { BarChart3, User, Bot, Coins, Menu, X, Calculator, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import LogoutButton from "./LogoutButton";
 import { createClient } from "../../lib/supabase/client";
@@ -96,6 +96,7 @@ export default function Header() {
             </button>
 
             {[
+              { href: "/lessons", Icon: GraduationCap, label: "לימוד", title: "אזור הלימוד — שיעורי מסחר" },
               { href: "/stats", Icon: BarChart3, label: "סטטיסטיקה", title: "יומן עסקאות וסטטיסטיקת ביצועים" },
               { href: "/calculator", Icon: Calculator, label: "מחשבון", title: "מחשבון רווח והפסד" },
               { href: "/coin", Icon: Coins, label: "יצירת מטבע", title: "יצירת מטבע חדש" },
@@ -159,6 +160,16 @@ export default function Header() {
               <Calculator className="h-5 w-5 relative z-10" />
               <span className="font-medium relative z-10">מחשבון</span>
               <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">✨</span>
+            </Link>
+
+            <Link
+              href="/lessons"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-all w-full relative overflow-hidden group"
+            >
+              <span className="absolute inset-0 bg-gradient-to-r from-amber-200/50 to-amber-100/30 w-full transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500"></span>
+              <GraduationCap className="h-5 w-5 relative z-10" />
+              <span className="font-medium relative z-10">לימוד</span>
             </Link>
 
             <Link
