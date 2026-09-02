@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { getBearerToken, createClientFromToken } from "@lib/supabase/bearer";
-import OpenAI, { toFile } from "openai";
+import OpenAI from "openai";
 import { v4 as uuidv4 } from "uuid";
 
 export async function POST(request: Request) {
@@ -102,46 +102,65 @@ export async function POST(request: Request) {
     const { data: publicUrlData } = supabase.storage.from("images").getPublicUrl(imagePath);
     const imageUrl = publicUrlData.publicUrl;
 
-    // OpenAI Assistants API
-    const openai = new OpenAI({ apiKey: process.env.NET_PUBLIC_SITE_URL_OPENAI_API_KEY });
-    const assistantId = process.env.NEXT_PUBLIC_SITE_OPENAI_ASSISTANT_ID || "";
-
-    const thread = await openai.beta.threads.create();
-    const uploadedFile = await openai.files.create({
-      file: await toFile(imageBuffer, fileName),
-      purpose: "vision",
+    // A single vision completion, rather than the Assistants flow this used to
+    // run. That flow needed an assistant created in one specific OpenAI account,
+    // so a key from any other account failed with a 404 that looked like a
+    // generic analysis error. Keeping the instructions in the repo removes that
+    // coupling, and replaces seven round trips (thread, file, message, run,
+    // polling, read, delete) with one.
+    const openai = new OpenAI({
+      apiKey: process.env.NET_PUBLIC_SITE_URL_OPENAI_API_KEY,
+      timeout: 60_000,
+      maxRetries: 1,
     });
-    await openai.beta.threads.messages.create(thread.id, {
-      role: "user",
-      content: [
-        { type: "image_file", image_file: { file_id: uploadedFile.id } },
-        { type: "text", text: "תנתחי לי את הגרף של " + assetNameSliced },
+
+    // OpenAI accepts png, jpeg, gif and webp; label the bytes we actually got.
+    const sniffMime = (b: Buffer): string => {
+      if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
+      if (b[0] === 0x47 && b[1] === 0x49) return "image/gif";
+      if (b.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+      return "image/png";
+    };
+    const dataUrl = `data:${sniffMime(imageBuffer)};base64,${imageBuffer.toString("base64")}`;
+
+    const SYSTEM_PROMPT = `אתה אנליסט טכני מנוסה שמנתח גרפי מסחר עבור סוחרים ישראלים.
+
+עליך לענות **תמיד בעברית**, בגוף פונה לסוחר, בטון מקצועי ובהיר.
+
+נתח את הגרף שקיבלת והחזר תשובה מובנית בסעיפים הבאים:
+
+**סקירה כללית** — הנכס, מסגרת הזמן והמגמה הנוכחית (עולה / יורדת / דשדוש).
+
+**רמות מפתח** — רמות תמיכה והתנגדות מרכזיות, עם מספרים מהגרף.
+
+**תבניות ואינדיקטורים** — תבניות נרות או מחיר שזיהית, ומה שניתן להסיק מנפח המסחר ומאינדיקטורים שנראים בגרף.
+
+**תרחיש מסחר** — נקודת כניסה מוצעת, סטופ לוס, טייק פרופיט, ויחס סיכון/סיכוי משוער.
+
+**סיכונים** — מה יפריך את התרחיש ומה כדאי לעקוב אחריו.
+
+כללים:
+- הסתמך רק על מה שנראה בגרף. אם נתון לא קריא, אמור זאת במפורש ואל תמציא מספרים.
+- אם התמונה אינה גרף מסחר, אמור זאת בקצרה ואל תנתח.
+- סיים במשפט: "אין באמור המלצה להשקעה. המסחר כרוך בסיכון."`;
+
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_ANALYSIS_MODEL || "gpt-4o",
+      max_tokens: 1500,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `נתח בבקשה את הגרף הזה של ${assetNameSliced}.` },
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+          ],
+        },
       ],
     });
-    const run = await openai.beta.threads.runs.create(thread.id, { assistant_id: assistantId });
 
-    const POLL_TIMEOUT_MS = 60_000;
-    const pollStart = Date.now();
-    let done = false;
-    while (!done) {
-      if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
-        await openai.beta.threads.runs.cancel(thread.id, run.id).catch(() => {});
-        throw new Error("OpenAI analysis timed out");
-      }
-      const runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      if (runStatus.status === "completed") done = true;
-      else if (["failed", "cancelled", "expired"].includes(runStatus.status)) {
-        throw new Error(`OpenAI run ${runStatus.status}`);
-      } else await new Promise(r => setTimeout(r, 500));
-    }
-
-    const messages = await openai.beta.threads.messages.list(thread.id);
-    const assistantMsg = messages.data.find(m => m.role === "assistant");
-    let analysisText = "";
-    if (assistantMsg?.content[0].type === "text") {
-      analysisText = assistantMsg.content[0].text.value;
-    }
-    await openai.files.del(uploadedFile.id);
+    const analysisText = completion.choices[0]?.message?.content?.trim() ?? "";
+    if (!analysisText) throw new Error("OpenAI returned an empty analysis");
 
     // Save request counter
     await supabase.from("user_requests").insert([{ user_id: user.id }]);
