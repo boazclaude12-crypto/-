@@ -33,7 +33,7 @@ import {
   Loader2
 } from "lucide-react";
 import axios from "axios";
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@lib/supabase/client";
 
 // פונטים משודרגים 
 const inter = Inter({ subsets: ['latin'] });
@@ -139,9 +139,21 @@ interface Plan {
 }
 
 
+const supabase = createClient();
+
+/**
+ * Authorization header for the admin API. The token is the signed-in user's
+ * Supabase access token; the server checks the is_admin flag on their profile.
+ */
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {};
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -199,16 +211,25 @@ export default function AdminPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const checkAuthentication = () => {
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-      const savedAuth = localStorage.getItem("adminAuth");
-      
-      if (savedAuth === adminPassword && adminPassword) {
-        setIsAuthenticated(true);
-        setLoading(false);
-        fetchDashboardData();
-      } else {
+    const checkAuthentication = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
         setIsAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+
+      // A valid session is not enough — the server only answers callers whose
+      // profile carries is_admin, so ask it before showing the dashboard.
+      try {
+        await axios.get('/api/admin/stats', { headers: await authHeaders() });
+        setIsAuthenticated(true);
+        fetchDashboardData();
+      } catch {
+        await supabase.auth.signOut();
+        setIsAuthenticated(false);
+      } finally {
         setLoading(false);
       }
     };
@@ -230,31 +251,38 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, activeTab, usersPage, paymentsPage, errorsPage]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-    
-    if (password === adminPassword) {
-      localStorage.setItem("adminAuth", password);
-      setIsAuthenticated(true);
-      setError("");
-      fetchDashboardData();
-    } else {
-      setError("סיסמה שגויה. נסה שוב.");
+    setError("");
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      setError("אימייל או סיסמה שגויים. נסה שוב.");
+      return;
     }
+
+    // Signing in proves who you are; is_admin decides whether you get in.
+    try {
+      await axios.get('/api/admin/stats', { headers: await authHeaders() });
+    } catch {
+      await supabase.auth.signOut();
+      setError("החשבון הזה אינו מנהל.");
+      return;
+    }
+
+    setIsAuthenticated(true);
+    fetchDashboardData();
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminAuth");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsAuthenticated(false);
   };
 
   const fetchDashboardData = async () => {
     try {
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-      
       const statsRes = await axios.get('/api/admin/stats', {
-        headers: { Authorization: `Bearer ${adminPassword}` }
+        headers: await authHeaders()
       });
 
       console.log('Stats Response:', statsRes.data);
@@ -271,9 +299,8 @@ export default function AdminPage() {
   const fetchUsers = async () => {
     setUsersLoading(true);
     try {
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
       const res = await axios.get(`/api/admin/users?page=${usersPage}&pageSize=10`, {
-        headers: { Authorization: `Bearer ${adminPassword}` }
+        headers: await authHeaders()
       });
       
       setUsers(res.data.users || []);
@@ -288,9 +315,8 @@ export default function AdminPage() {
   const fetchPayments = async () => {
     setPaymentsLoading(true);
     try {
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
       const res = await axios.get(`/api/admin/payments?page=${paymentsPage}&pageSize=10`, {
-        headers: { Authorization: `Bearer ${adminPassword}` }
+        headers: await authHeaders()
       });
       
       setPayments(res.data.payments || []);
@@ -305,9 +331,8 @@ export default function AdminPage() {
   const fetchErrors = async () => {
     setErrorsLoading(true);
     try {
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
       const res = await axios.get(`/api/admin/errors?page=${errorsPage}&pageSize=10`, {
-        headers: { Authorization: `Bearer ${adminPassword}` }
+        headers: await authHeaders()
       });
       
       setErrors(res.data.errors || []);
@@ -322,7 +347,7 @@ export default function AdminPage() {
 
   const fetchPlans = async () => {
     try {
-      const res = await axios.get('/api/admin/plans');
+      const res = await axios.get('/api/admin/plans', { headers: await authHeaders() });
       setPlans(res.data || []);
     } catch (error) {
       console.error('Error fetching plans:', error);
@@ -331,7 +356,7 @@ export default function AdminPage() {
 
   const updatePlan = async (plan: Plan) => {
     try {
-      const res = await axios.post('/api/admin/plans', plan);
+      const res = await axios.post('/api/admin/plans', plan, { headers: await authHeaders() });
       if (res.status === 200) {
         fetchPlans(); // Refresh plans after update
       }
@@ -428,9 +453,8 @@ export default function AdminPage() {
   // Add function to handle user profile update
   const handleUserUpdate = async (updatedUser: User) => {
     try {
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
       await axios.put(`/api/admin/users/${updatedUser.id}`, updatedUser, {
-        headers: { Authorization: `Bearer ${adminPassword}` }
+        headers: await authHeaders()
       });
       
       // Refresh user list after update
@@ -486,6 +510,20 @@ export default function AdminPage() {
           
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                placeholder="הזן אימייל מנהל"
+                autoComplete="username"
+                required
+              />
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
               <input
                 id="password"
@@ -493,7 +531,8 @@ export default function AdminPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="הזן סיסמת מנהל"
+                placeholder="הזן סיסמה"
+                autoComplete="current-password"
                 required
               />
             </div>
