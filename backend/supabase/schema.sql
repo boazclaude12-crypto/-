@@ -23,17 +23,13 @@ alter table public.plans enable row level security;
 drop policy if exists "plans_public_read" on public.plans;
 create policy "plans_public_read" on public.plans for select using (true);
 
--- Seed. id 1 must exist: it is the tier every new signup lands on.
+-- Only the trial tier is seeded here, because it is the one the signup trigger
+-- below depends on. The paid plans live in plans.sql, which is the single place
+-- their names, prices and limits are defined - run it after this file.
 insert into public.plans (id, name, price, is_monthly, daily_limit, daily_chat_limit, features)
-values
-  (1, 'חינם',   0,   true,  3,   10,  array['3 ניתוחים ביום','ניתוח טכני בסיסי','גישה למחשבון']),
-  (2, 'בסיסי',  99,  true,  20,  50,  array['20 ניתוחים ביום','ניתוח טכני מלא','יומן עסקאות','תמיכה במייל']),
-  (3, 'מקצועי', 199, true,  100, 200, array['100 ניתוחים ביום','ניתוח מתקדם','יומן עסקאות','התראות בזמן אמת','תמיכה מועדפת']),
-  (4, 'בסיסי שנתי',  831,  false, 20,  50,  array['20 ניתוחים ביום','חיסכון של 30%','ניתוח טכני מלא','יומן עסקאות']),
-  (5, 'מקצועי שנתי', 1671, false, 100, 200, array['100 ניתוחים ביום','חיסכון של 30%','ניתוח מתקדם','יומן עסקאות','תמיכה מועדפת'])
+values (7, 'תקופת ניסיון', 0, true, 3, 0, array['3 ניתוחים ביום','גישה למחשבון ולאזור הלימוד'])
 on conflict (id) do nothing;
 
--- Keep the identity sequence ahead of the seeded ids.
 select setval(pg_get_serial_sequence('public.plans','id'), greatest((select max(id) from public.plans), 1));
 
 -- ─────────────────────────────────────────────────────────────
@@ -75,7 +71,7 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
     new.raw_user_meta_data->>'avatar_url',
-    1
+    7
   )
   on conflict (user_id) do nothing;
   return new;
@@ -89,7 +85,7 @@ create trigger on_auth_user_created
 
 -- Backfill anyone who signed up before this trigger existed.
 insert into public.user_profiles (user_id, name, plan_id)
-select u.id, split_part(u.email, '@', 1), 1
+select u.id, split_part(u.email, '@', 1), 7
 from auth.users u
 left join public.user_profiles p on p.user_id = u.id
 where p.user_id is null;
