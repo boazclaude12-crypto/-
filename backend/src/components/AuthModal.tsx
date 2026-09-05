@@ -123,13 +123,23 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   };
 
   const handleGoogleLogin = async () => {
+    setError(null);
+    setNotice(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${siteOrigin()}/auth/callback`,
       }
     });
-    if (error) setError(error.message);
+    if (!error) return;
+
+    // Surfacing the raw message here showed the user an English configuration
+    // error about a provider they have no way to enable.
+    if (/provider is not enabled|Unsupported provider/i.test(error.message)) {
+      setError("התחברות עם Google אינה זמינה כרגע. אפשר להירשם עם אימייל וסיסמה.");
+    } else {
+      setError(error.message);
+    }
   };
 
   const handleForgotPassword = async () => {
