@@ -3,6 +3,7 @@ import { createClient } from "../../../../lib/supabase/server";
 import { getBearerToken, createClientFromToken } from "@lib/supabase/bearer";
 import OpenAI from "openai";
 import { v4 as uuidv4 } from "uuid";
+import { getEntitlement, getUsedToday } from "../../../../lib/subscription";
 
 export async function POST(request: Request) {
   try {
@@ -16,37 +17,20 @@ export async function POST(request: Request) {
     if (!user)
       return NextResponse.json({ error: "unauthorized", message: "Unauthorized" }, { status: 401 });
 
-    // Fetch user profile and plan (free tier fallback when no plan_id)
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("plan_id")
-      .eq("user_id", user.id)
-      .single();
+    // Entitlement, not just plan_id: a lapsed subscription must not keep the
+    // limits it stopped paying for.
+    const entitlement = await getEntitlement(supabase, user.id);
+    const usedToday = await getUsedToday(supabase, user.id);
 
-    let dailyLimit = 3; // free tier default
-    if (profile?.plan_id) {
-      const { data: plan } = await supabase
-        .from("plans")
-        .select("daily_limit")
-        .eq("id", profile.plan_id)
-        .single();
-      if (plan) dailyLimit = plan.daily_limit;
-    }
-
-    // Check daily request limit (Israel timezone)
-    const now = new Date();
-    const israelTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-    israelTime.setHours(0, 0, 0, 0);
-
-    const { data: recentRequests } = await supabase
-      .from("user_requests")
-      .select("id")
-      .eq("user_id", user.id)
-      .gte("created_at", israelTime.toISOString());
-
-    if (recentRequests && recentRequests.length >= dailyLimit) {
+    if (usedToday >= entitlement.dailyLimit) {
       return NextResponse.json(
-        { error: "limit_reached", message: "Daily limit reached, try again tomorrow" },
+        {
+          error: "limit_reached",
+          message: entitlement.expired
+            ? "המנוי שלך הסתיים. חדש אותו כדי להמשיך לנתח גרפים."
+            : "Daily limit reached, try again tomorrow",
+          expired: entitlement.expired,
+        },
         { status: 429 }
       );
     }
