@@ -224,7 +224,10 @@ function Home() {
   useEffect(() => {
     if (plans && plans.length > 0) {
       const filtered = plans
-        .filter((plan) => plan.is_monthly !== isAnnual && Number(plan.id) !== 7)
+        // Free tiers are the ones not for sale, so hide them by price rather
+        // than by a specific id — the id that used to be hardcoded here is
+        // invisible from the database side and breaks silently if plans are renumbered.
+        .filter((plan) => plan.is_monthly !== isAnnual && Number(plan.price) > 0)
         .sort((a, b) => Number(a.id) - Number(b.id));
       setFilteredPlans(filtered);
     }
