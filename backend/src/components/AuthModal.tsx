@@ -99,12 +99,23 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         } else {
           setError(error.message);
         }
-      } else if (!data.session) {
-        // Signup succeeded but the project requires email confirmation, so there
-        // is no session yet and /dashboard would reject them.
-        setNotice("נשלח אליך מייל אישור. יש ללחוץ על הקישור שבו כדי להשלים את ההרשמה.");
-      } else {
+      } else if (data.session) {
         router.push("/dashboard");
+      } else {
+        // Signup succeeded but returned no session. That happens when the
+        // project is configured to confirm addresses, and it is also what
+        // happens when the account is confirmed at the database level — the
+        // signup response is decided before that. Rather than guess, try to
+        // sign in: it succeeds whenever the account is usable, and only when it
+        // genuinely isn't do we fall back to telling the user to check mail.
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (!signInError) {
+          router.push("/dashboard");
+        } else if (/not confirmed|confirm/i.test(signInError.message)) {
+          setNotice("נשלח אליך מייל אישור. יש ללחוץ על הקישור שבו כדי להשלים את ההרשמה.");
+        } else {
+          setError(signInError.message);
+        }
       }
     }
 
