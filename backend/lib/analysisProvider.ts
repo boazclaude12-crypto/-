@@ -115,7 +115,13 @@ async function analyzeWithAnthropic(
   const message = await client.messages.create({
     model: selectedModel("anthropic"),
     max_tokens: 8000,
-    system: SYSTEM_PROMPT,
+    // The tools and system prompt are byte-identical on every analysis and only
+    // the image varies, so the whole prefix up to here is cacheable. Caching is
+    // a prefix match and tools render before system, so one breakpoint at the
+    // end of the system block covers both.
+    system: [
+      { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    ],
     output_config: { effort: "high" },
     tools: [
       {
