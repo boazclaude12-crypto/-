@@ -8,6 +8,20 @@ import { daysBetween, hoursBetween, startOfDay } from '../time';
 
 export type ActionSeverity = 'critical' | 'high' | 'medium' | 'low';
 
+/**
+ * What can be done about an action without leaving the page.
+ *
+ * A list that only links somewhere leaves the work exactly where it was — the recruiter
+ * still has to find the screen, the record and the button. Naming the operation here lets
+ * the item carry it, so the common case is one press and done.
+ */
+export type ActionOperation =
+  | { type: 'complete_task'; taskId: string }
+  | { type: 'message_candidate'; candidateId: string; phone: string; jobId: string | null; label: string }
+  | { type: 'mark_paid'; paymentId: string }
+  | { type: 'confirm_placement'; placementId: string }
+  | { type: 'navigate' };
+
 export interface NextAction {
   id: string;
   severity: ActionSeverity;
@@ -18,6 +32,8 @@ export interface NextAction {
   actionLabel: string;
   kind: string;
   entityId: string | null;
+  /** The thing this row can do in place. 'navigate' when only a link makes sense. */
+  operation: ActionOperation;
 }
 
 const SEVERITY_ORDER: Record<ActionSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -44,6 +60,7 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לגבות פידבק',
       kind: 'client_feedback',
       entityId: waiting.client_id,
+      operation: { type: 'navigate' },
     });
   }
 
@@ -59,12 +76,17 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לטפל',
       kind: 'task_overdue',
       entityId: task.id,
+      operation: { type: 'complete_task', taskId: task.id },
     });
   }
 
   // 3. Candidates who were contacted and never replied.
-  const silent = db.all<{ candidate_id: string; name: string; last_sent: string }>(
-    `SELECT m.candidate_id, (c.first_name || ' ' || c.last_name) AS name, MAX(m.sent_at) AS last_sent
+  const silent = db.all<{ candidate_id: string; name: string; last_sent: string; phone: string | null; job_id: string | null }>(
+    `SELECT m.candidate_id, (c.first_name || ' ' || c.last_name) AS name, MAX(m.sent_at) AS last_sent,
+            COALESCE(c.whatsapp, c.phone) AS phone,
+            (SELECT a.job_id FROM applications a
+              WHERE a.candidate_id = m.candidate_id AND a.org_id = m.org_id
+              ORDER BY a.updated_at DESC LIMIT 1) AS job_id
        FROM messages m
        JOIN candidates c ON c.id = m.candidate_id
       WHERE m.org_id = ? AND m.direction = 'out' AND m.status = 'sent' AND m.candidate_id IS NOT NULL
@@ -89,6 +111,15 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לשלוח מעקב',
       kind: 'candidate_silent',
       entityId: candidate.candidate_id,
+      operation: candidate.phone
+        ? {
+            type: 'message_candidate',
+            candidateId: candidate.candidate_id,
+            phone: candidate.phone,
+            jobId: candidate.job_id,
+            label: 'שליחת מעקב',
+          }
+        : { type: 'navigate' },
     });
   }
 
@@ -103,10 +134,19 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'למצוא מועמדים',
       kind: 'job_stale',
       entityId: job.id,
+      operation: { type: 'navigate' },
     });
   }
 
   // 5. Interviews happening today.
+  const interviewContacts = new Map(
+    db.all<{ id: string; phone: string | null }>(
+      `SELECT i.id, COALESCE(c.whatsapp, c.phone) AS phone
+         FROM interviews i JOIN candidates c ON c.id = i.candidate_id
+        WHERE i.org_id = ? AND date(i.scheduled_at) = date('now')`,
+      orgId,
+    ).map((row) => [row.id, row.phone]),
+  );
   for (const interview of interviewsToday(orgId).slice(0, 3)) {
     const hours = Math.abs(hoursBetween(new Date().toISOString(), interview.scheduled_at));
     actions.push({
@@ -118,6 +158,15 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לפתוח מועמד',
       kind: 'interview_today',
       entityId: interview.id,
+      operation: interviewContacts.get(interview.id)
+        ? {
+            type: 'message_candidate',
+            candidateId: interview.candidate_id,
+            phone: interviewContacts.get(interview.id)!,
+            jobId: interview.job_id ?? null,
+            label: 'אישור עם המועמד',
+          }
+        : { type: 'navigate' },
     });
   }
 
@@ -140,6 +189,7 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לטפל בגבייה',
       kind: 'payment_overdue',
       entityId: payment.id,
+      operation: { type: 'mark_paid', paymentId: payment.id },
     });
   }
 
@@ -163,6 +213,7 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לאשר תחילת עבודה',
       kind: 'placement_unconfirmed',
       entityId: placement.id,
+      operation: { type: 'confirm_placement', placementId: placement.id },
     });
   }
 
@@ -183,6 +234,7 @@ export function nextBestActions(orgId: string, limit = 8): NextAction[] {
       actionLabel: 'לפתוח רשימה',
       kind: 'candidates_untouched',
       entityId: null,
+      operation: { type: 'navigate' },
     });
   }
 

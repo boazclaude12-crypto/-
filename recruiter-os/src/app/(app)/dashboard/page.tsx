@@ -7,6 +7,7 @@ import { Badge, Card, Dot, EmptyState, LinkButton, StatCard } from '@/components
 import { Icon } from '@/components/ui/icons';
 import { formatMoney, formatTime, relativeTime } from '@/lib/format';
 import { TaskChecklist } from '@/components/app/TaskChecklist';
+import { ActionList } from '@/components/app/ActionList';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'ראשי — Recruiter OS' };
@@ -67,48 +68,20 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {actions.length > 0 && (
-        <Card
-          title={
-            <span className="flex items-center gap-2">
-              <Icon.Bolt size={16} className="text-brand" />
-              מה לעשות עכשיו
-            </span>
-          }
-          action={<span className="text-xs text-faint">מדורג לפי דחיפות</span>}
-          bodyClassName="p-0"
-        >
-          <ul className="divide-y divide-line">
-            {actions.map((action) => (
-              <li key={action.id}>
-                <Link
-                  href={action.href}
-                  className="flex items-start gap-3 px-4 py-3 transition hover:bg-brand-soft/50"
-                >
-                  <span className="mt-1.5">
-                    <Dot
-                      tone={
-                        action.severity === 'critical'
-                          ? 'danger'
-                          : action.severity === 'high'
-                            ? 'warn'
-                            : action.severity === 'medium'
-                              ? 'info'
-                              : 'muted'
-                      }
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-ink">{action.title}</span>
-                    <span className="block text-xs text-muted">{action.detail}</span>
-                  </span>
-                  <span className="shrink-0 text-xs font-medium text-brand">{action.actionLabel} ←</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <Card
+        title={
+          <span className="flex items-center gap-2">
+            <Icon.Bolt size={16} className="text-brand" />
+            מה לעשות עכשיו
+          </span>
+        }
+        action={
+          actions.length > 0 ? <span className="text-xs text-faint">מדורג לפי דחיפות</span> : undefined
+        }
+        bodyClassName="p-0"
+      >
+        <ActionList actions={actions} />
+      </Card>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-muted">כסף — החודש</h2>
