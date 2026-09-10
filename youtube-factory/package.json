@@ -1,0 +1,18 @@
+{
+  "name": "youtube-content-factory",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Autonomous YouTube content factory — research, script, generate, render, publish, learn.",
+  "workspaces": ["apps/server", "apps/web"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "npm run dev --workspace @ycf/server",
+    "dev:web": "npm run dev --workspace @ycf/web",
+    "build": "npm run build --workspace @ycf/server && npm run build --workspace @ycf/web",
+    "typecheck": "npm run typecheck --workspace @ycf/server && npm run typecheck --workspace @ycf/web",
+    "test": "npm run test --workspace @ycf/server",
+    "prisma:generate": "npm run prisma:generate --workspace @ycf/server",
+    "prisma:migrate": "npm run prisma:migrate --workspace @ycf/server",
+    "seed": "npm run seed --workspace @ycf/server"
+  }
+}

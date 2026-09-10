@@ -8,5 +8,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["backend/**", "node_modules"]
+  "exclude": ["backend/**", "youtube-factory/**", "node_modules"]
 }

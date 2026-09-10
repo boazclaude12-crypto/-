@@ -1,0 +1,133 @@
+# Complete, self-driving deployment: database, cache, object storage, API, worker
+# and dashboard. `docker compose up` is enough to have a working factory.
+name: youtube-content-factory
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: factory
+      POSTGRES_PASSWORD: factory
+      POSTGRES_DB: factory
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U factory -d factory']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - '5432:5432'
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - '6379:6379'
+
+  minio:
+    image: minio/minio:latest
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: factory
+      MINIO_ROOT_PASSWORD: factory-secret
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+
+  # Creates the bucket once, then exits.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 factory factory-secret &&
+      mc mb --ignore-existing local/factory &&
+      echo 'bucket ready'
+      "
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    command: ['node', 'dist/main/api.js']
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://factory:factory@postgres:5432/factory
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: factory
+      S3_ACCESS_KEY: factory
+      S3_SECRET_KEY: factory-secret
+      S3_FORCE_PATH_STYLE: 'true'
+      HOST: 0.0.0.0
+      PORT: '4000'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    ports:
+      - '4000:4000'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    command: ['node', 'dist/main/worker.js']
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://factory:factory@postgres:5432/factory
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: factory
+      S3_ACCESS_KEY: factory
+      S3_SECRET_KEY: factory-secret
+      S3_FORCE_PATH_STYLE: 'true'
+    depends_on:
+      api: { condition: service_healthy }
+    # Rendering is CPU-bound; give the worker room and keep one render at a time.
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000}
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000}
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

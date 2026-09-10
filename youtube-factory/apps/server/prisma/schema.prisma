@@ -1,0 +1,958 @@
+// YouTube Content Factory — data model (spec §45)
+// Every model is tenant-scoped through User → Channel → Video.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────── identity & access
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions        Session[]
+  channels        Channel[]
+  providerKeys    ProviderCredential[]
+  notifications   NotificationTarget[]
+  contentTemplates ContentTemplate[]
+  promptTemplates PromptTemplate[]
+
+  @@map("users")
+}
+
+/// Opaque server-side sessions. Only the SHA-256 hash of the token is stored.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ─────────────────────────────────────────────────────────── channels
+
+enum Platform {
+  YOUTUBE
+  TIKTOK
+  INSTAGRAM
+  X
+  FACEBOOK
+  PODCAST
+}
+
+enum AutomationMode {
+  FULL_AUTO
+  SEMI_AUTO
+  MANUAL
+}
+
+model Channel {
+  id                String   @id @default(cuid())
+  userId            String
+  platform          Platform @default(YOUTUBE)
+  /// Platform-side channel id (UC…) — null until OAuth completes.
+  youtubeChannelId  String?
+  name              String
+  description       String?
+  thumbnailUrl      String?
+  subscriberCount   Int?
+  videoCount        Int?
+  viewCount         BigInt?
+  statsFetchedAt    DateTime?
+  enabled           Boolean  @default(true)
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settings    ChannelSettings?
+  oauth       OAuthAccount?
+  ideas       ContentIdea[]
+  videos      Video[]
+  competitors CompetitorChannel[]
+  schedules   ScheduleSlot[]
+  sources     DiscoverySource[]
+  rules       AutomationRule[]
+  characters  CharacterProfile[]
+  learnings   Learning[]
+  strategies  StrategyPlan[]
+  apiUsage    ApiUsage[]
+  jobs        Job[]
+
+  @@unique([userId, youtubeChannelId])
+  @@index([userId])
+  @@map("channels")
+}
+
+model ChannelSettings {
+  id                  String         @id @default(cuid())
+  channelId           String         @unique
+  niche               String
+  language            String         @default("en")
+  targetAudience      String
+  contentStyle        String         @default("documentary")
+  /// Requested finished runtime in minutes (spec §55).
+  targetDurationMin   Int            @default(10)
+  videosPerWeek       Int            @default(3)
+  automationMode      AutomationMode @default(SEMI_AUTO)
+  autopilotEnabled    Boolean        @default(false)
+  /// Local time-of-day the autopilot wakes up, "HH:MM".
+  autopilotRunAt      String         @default("06:00")
+  timezone            String         @default("UTC")
+  defaultPublishTime  String         @default("18:00")
+  /// Days of week (0=Sun) the channel publishes on.
+  publishDays         Int[]          @default([1, 3, 5])
+  privacyStatus       String         @default("private")
+  voiceProviderId     String?
+  voiceId             String?
+  voiceSettings       Json?
+  visualStyle         String         @default("cinematic documentary")
+  thumbnailStyle      String         @default("high-contrast subject with 3 word overlay")
+  musicMood           String         @default("neutral cinematic")
+  monthlyBudgetUsd    Float          @default(100)
+  /// Gates used by the automation rules engine (spec §57).
+  minIdeaScore        Float          @default(70)
+  minQcScore          Float          @default(75)
+  minFactConfidence   Float          @default(0.85)
+  minRetentionScore   Float          @default(70)
+  maxCostPerVideoUsd  Float          @default(15)
+  ideaWeights         Json?
+  bufferTargetVideos  Int            @default(2)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_settings")
+}
+
+/// Encrypted OAuth material. accessToken/refreshToken are AES-256-GCM ciphertext.
+model OAuthAccount {
+  id                 String   @id @default(cuid())
+  channelId          String   @unique
+  provider           String   @default("google")
+  externalAccountId  String?
+  accessToken        String
+  refreshToken       String?
+  scope              String
+  tokenType          String   @default("Bearer")
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("oauth_accounts")
+}
+
+model CompetitorChannel {
+  id               String   @id @default(cuid())
+  channelId        String
+  youtubeChannelId String
+  name             String
+  subscriberCount  Int?
+  uploadFrequency  Float?
+  avgViews         Float?
+  avgDurationSec   Int?
+  lastAnalyzedAt   DateTime?
+  snapshot         Json?
+  createdAt        DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, youtubeChannelId])
+  @@map("competitor_channels")
+}
+
+enum SourceKind {
+  YOUTUBE
+  GOOGLE_TRENDS
+  REDDIT
+  RSS
+  NEWS_API
+  WIKIPEDIA
+  WEBSITE
+  MANUAL
+}
+
+model DiscoverySource {
+  id          String     @id @default(cuid())
+  channelId   String
+  kind        SourceKind
+  label       String
+  /// Feed URL, subreddit, search query — meaning depends on `kind`.
+  target      String
+  enabled     Boolean    @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime   @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  signals TrendSignal[]
+
+  @@index([channelId])
+  @@map("discovery_sources")
+}
+
+model TrendSignal {
+  id          String     @id @default(cuid())
+  sourceId    String
+  kind        SourceKind
+  topic       String
+  url         String?
+  score       Float      @default(0)
+  velocity    Float?
+  raw         Json?
+  observedAt  DateTime   @default(now())
+
+  source DiscoverySource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, observedAt])
+  @@map("trend_signals")
+}
+
+// ─────────────────────────────────────────────────────────── ideas
+
+enum IdeaStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  IN_PRODUCTION
+  PRODUCED
+}
+
+model ContentIdea {
+  id                  String     @id @default(cuid())
+  channelId           String
+  title               String
+  topic               String
+  angle               String
+  hook                String
+  targetAudience      String
+  rationale           String?
+  status              IdeaStatus @default(PROPOSED)
+  estimatedDemand     Float      @default(0)
+  competition         Float      @default(0)
+  novelty             Float      @default(0)
+  evergreenScore      Float      @default(0)
+  trendScore          Float      @default(0)
+  productionCostUsd   Float      @default(0)
+  estimatedCtr        Float      @default(0)
+  estimatedRetention  Float      @default(0)
+  overallScore        Float      @default(0)
+  scoreBreakdown      Json?
+  sourceSignals       Json?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  videos  Video[]
+
+  @@index([channelId, status])
+  @@map("content_ideas")
+}
+
+// ─────────────────────────────────────────────────────────── production
+
+enum VideoStatus {
+  IDEA
+  RESEARCHING
+  RESEARCH_COMPLETE
+  SCRIPTING
+  SCRIPT_READY
+  FACT_CHECK
+  SCENE_PLANNING
+  GENERATING_VISUALS
+  GENERATING_VOICE
+  EDITING
+  QC
+  THUMBNAIL
+  SEO
+  READY
+  SCHEDULED
+  PUBLISHED
+  ANALYZING
+  FAILED
+}
+
+model Video {
+  id                String      @id @default(cuid())
+  channelId         String
+  ideaId            String?
+  templateId        String?
+  title             String
+  status            VideoStatus @default(IDEA)
+  previousStatus    VideoStatus?
+  /// Per-stage completion, e.g. { "SCRIPTING": 100, "GENERATING_VISUALS": 40 }.
+  progress          Json?
+  targetDurationSec Int         @default(600)
+  actualDurationSec Float?
+  language          String      @default("en")
+  renderKey         String?
+  renderWidth       Int?
+  renderHeight      Int?
+  fileSizeBytes     BigInt?
+  qualityScore      Float?
+  qualityBreakdown  Json?
+  factConfidence    Float?
+  retentionScore    Float?
+  estimatedCostUsd  Float       @default(0)
+  actualCostUsd     Float       @default(0)
+  failureReason     String?
+  publishAt         DateTime?
+  publishedAt       DateTime?
+  youtubeVideoId    String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  channel     Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  idea        ContentIdea?     @relation(fields: [ideaId], references: [id])
+  template    ContentTemplate? @relation(fields: [templateId], references: [id])
+  research    Research?
+  script      Script?
+  scenes      Scene[]
+  assets      Asset[]
+  voiceovers  Voiceover[]
+  thumbnails  Thumbnail[]
+  seo         SeoMetadata?
+  timeline    Timeline?
+  qcReports   QcReport[]
+  upload      Upload?
+  schedule    ScheduleSlot?
+  analytics   AnalyticsSnapshot[]
+  jobs        Job[]
+  decisions   DecisionLog[]
+  agentRuns   AgentRun[]
+  apiUsage    ApiUsage[]
+  learnings   Learning[]
+
+  @@index([channelId, status])
+  @@index([status, publishAt])
+  @@map("videos")
+}
+
+model Research {
+  id            String   @id @default(cuid())
+  videoId       String   @unique
+  topic         String
+  summary       String
+  depth         String   @default("standard")
+  confidence    Float    @default(0)
+  openQuestions Json?
+  createdAt     DateTime @default(now())
+
+  video   Video            @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  sources ResearchSource[]
+
+  @@map("research")
+}
+
+enum ClaimVerdict {
+  SUPPORTED
+  UNVERIFIED
+  CONTRADICTED
+}
+
+model ResearchSource {
+  id          String       @id @default(cuid())
+  researchId  String
+  claim       String
+  source      String
+  sourceUrl   String?
+  sourceType  String
+  publishedAt DateTime?
+  confidence  Float        @default(0)
+  verdict     ClaimVerdict @default(UNVERIFIED)
+  notes       String?
+
+  research Research @relation(fields: [researchId], references: [id], onDelete: Cascade)
+
+  @@index([researchId])
+  @@map("research_sources")
+}
+
+model Script {
+  id                String   @id @default(cuid())
+  videoId           String   @unique
+  structure         String
+  hook              String
+  intro             String
+  /// [{ heading, narration, purpose, targetSeconds, patternInterrupt }]
+  sections          Json
+  cta               String
+  wordCount         Int
+  estimatedDuration Float
+  retentionScore    Float?
+  retentionNotes    Json?
+  factCheckScore    Float?
+  factCheckReport   Json?
+  revision          Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("scripts")
+}
+
+enum SceneStrategy {
+  STOCK
+  IMAGE_MOTION
+  GENERATED_VIDEO
+  EXISTING_MEDIA
+}
+
+model Scene {
+  id               String        @id @default(cuid())
+  videoId          String
+  index            Int
+  durationSec      Float
+  narration        String
+  visualBrief      String
+  prompt           String
+  negativePrompt   String?
+  camera           String?
+  style            String?
+  aspectRatio      String        @default("16:9")
+  characters       String[]      @default([])
+  location         String?
+  lighting         String?
+  motion           String?
+  continuityNotes  String?
+  textOverlay      String?
+  sfx              String?
+  importance       Float         @default(0.5)
+  strategy         SceneStrategy @default(IMAGE_MOTION)
+  assetId          String?
+  createdAt        DateTime      @default(now())
+
+  video Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  asset Asset? @relation(fields: [assetId], references: [id])
+
+  @@unique([videoId, index])
+  @@map("scenes")
+}
+
+enum AssetKind {
+  IMAGE
+  VIDEO
+  AUDIO
+  MUSIC
+  SFX
+  THUMBNAIL
+  CAPTION
+  RENDER
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  videoId     String?
+  kind        AssetKind
+  storageKey  String
+  mimeType    String
+  bytes       Int?
+  durationSec Float?
+  width       Int?
+  height      Int?
+  provider    String?
+  externalId  String?
+  costUsd     Float     @default(0)
+  license     String?
+  attribution String?
+  checksum    String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  video  Video?  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  scenes Scene[]
+
+  @@index([videoId, kind])
+  @@map("assets")
+}
+
+model Voiceover {
+  id          String   @id @default(cuid())
+  videoId     String
+  index       Int
+  text        String
+  storageKey  String
+  durationSec Float
+  provider    String
+  voiceId     String
+  /// Word-level alignment derived from character timestamps.
+  wordTimings Json?
+  costUsd     Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, index])
+  @@map("voiceovers")
+}
+
+model Timeline {
+  id        String   @id @default(cuid())
+  videoId   String   @unique
+  document  Json
+  renderCmd String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("timelines")
+}
+
+model Thumbnail {
+  id           String   @id @default(cuid())
+  videoId      String
+  variant      String
+  concept      String
+  prompt       String
+  storageKey   String?
+  ctrPotential Float    @default(0)
+  selected     Boolean  @default(false)
+  provider     String?
+  costUsd      Float    @default(0)
+  createdAt    DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, variant])
+  @@map("thumbnails")
+}
+
+model SeoMetadata {
+  id              String   @id @default(cuid())
+  videoId         String   @unique
+  title           String
+  titleCandidates Json
+  description     String
+  tags            String[]
+  hashtags        String[]
+  keywords        String[]
+  chapters        Json
+  categoryId      String   @default("27")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("seo_metadata")
+}
+
+model QcReport {
+  id        String   @id @default(cuid())
+  videoId   String
+  passed    Boolean
+  score     Float
+  checks    Json
+  failures  Json
+  repairs   Json?
+  createdAt DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@map("qc_reports")
+}
+
+enum UploadState {
+  PENDING
+  UPLOADING
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+model Upload {
+  id             String      @id @default(cuid())
+  videoId        String      @unique
+  state          UploadState @default(PENDING)
+  privacyStatus  String      @default("private")
+  youtubeVideoId String?
+  resumableUri   String?
+  bytesUploaded  BigInt      @default(0)
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("uploads")
+}
+
+model ScheduleSlot {
+  id          String   @id @default(cuid())
+  channelId   String
+  videoId     String?  @unique
+  publishAt   DateTime
+  timezone    String   @default("UTC")
+  reserved    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  video   Video?  @relation(fields: [videoId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, publishAt])
+  @@map("schedule_slots")
+}
+
+model AnalyticsSnapshot {
+  id                    String   @id @default(cuid())
+  videoId               String
+  capturedAt            DateTime @default(now())
+  views                 Int      @default(0)
+  watchTimeMinutes      Float    @default(0)
+  averageViewDuration   Float    @default(0)
+  averageViewPercentage Float    @default(0)
+  impressions           Int      @default(0)
+  ctr                   Float    @default(0)
+  likes                 Int      @default(0)
+  comments              Int      @default(0)
+  shares                Int      @default(0)
+  subscribersGained     Int      @default(0)
+  estimatedRevenueUsd   Float?
+  raw                   Json?
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, capturedAt])
+  @@map("analytics_snapshots")
+}
+
+/// What the system concluded from comparing a prediction with reality (spec §35).
+model Learning {
+  id          String   @id @default(cuid())
+  channelId   String
+  videoId     String?
+  dimension   String
+  observation String
+  predicted   Float?
+  actual      Float?
+  delta       Float?
+  weight      Float    @default(1)
+  createdAt   DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  video   Video?  @relation(fields: [videoId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, dimension])
+  @@map("learnings")
+}
+
+model StrategyPlan {
+  id            String   @id @default(cuid())
+  channelId     String
+  weekStart     DateTime
+  summary       String
+  recommendations Json
+  mix           Json
+  createdAt     DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, weekStart])
+  @@map("strategy_plans")
+}
+
+// ─────────────────────────────────────────────────────────── templates & prompts
+
+model ContentTemplate {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  description    String?
+  scriptStructure Json
+  visualStyle    String
+  voiceProfile   Json?
+  musicMood      String?
+  sceneDurationSec Float  @default(7)
+  thumbnailStyle String?
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos Video[]
+
+  @@unique([userId, name])
+  @@map("content_templates")
+}
+
+model PromptTemplate {
+  id           String   @id @default(cuid())
+  userId       String?
+  name         String
+  version      Int      @default(1)
+  provider     String?
+  systemPrompt String
+  userTemplate String
+  variables    String[] @default([])
+  active       Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs AgentRun[]
+
+  @@unique([name, version, userId])
+  @@index([name, active])
+  @@map("prompt_templates")
+}
+
+// ─────────────────────────────────────────────────────────── providers & metering
+
+model Provider {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  capabilities String[]
+  enabled      Boolean  @default(true)
+  priority     Int      @default(100)
+  config       Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("providers")
+}
+
+/// A user-supplied API key for a provider, encrypted at rest.
+model ProviderCredential {
+  id         String   @id @default(cuid())
+  userId     String
+  providerKey String
+  ciphertext String
+  hint       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerKey])
+  @@map("provider_credentials")
+}
+
+model ApiUsage {
+  id            String   @id @default(cuid())
+  channelId     String?
+  videoId       String?
+  jobId         String?
+  provider      String
+  operation     String
+  model         String?
+  inputUnits    Float    @default(0)
+  outputUnits   Float    @default(0)
+  unit          String   @default("token")
+  estimatedCost Float    @default(0)
+  actualCost    Float    @default(0)
+  latencyMs     Int      @default(0)
+  status        String   @default("ok")
+  error         String?
+  createdAt     DateTime @default(now())
+
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  video   Video?   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([provider, createdAt])
+  @@map("api_usage")
+}
+
+model AgentRun {
+  id            String   @id @default(cuid())
+  videoId       String?
+  agent         String
+  promptId      String?
+  promptName    String
+  promptVersion Int      @default(1)
+  provider      String
+  model         String?
+  ok            Boolean  @default(true)
+  attempts      Int      @default(1)
+  latencyMs     Int      @default(0)
+  costUsd       Float    @default(0)
+  input         Json?
+  output        Json?
+  error         String?
+  createdAt     DateTime @default(now())
+
+  video  Video?          @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  prompt PromptTemplate? @relation(fields: [promptId], references: [id])
+
+  @@index([agent, createdAt])
+  @@map("agent_runs")
+}
+
+/// Explainability record for every automated choice (spec §58, §79).
+model DecisionLog {
+  id        String   @id @default(cuid())
+  videoId   String?
+  channelId String?
+  subject   String
+  decision  String
+  reason    String
+  score     Float?
+  dataUsed  Json?
+  createdAt DateTime @default(now())
+
+  video Video? @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@index([channelId, createdAt])
+  @@map("decision_logs")
+}
+
+// ─────────────────────────────────────────────────────────── jobs
+
+enum JobState {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  WAITING_APPROVAL
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  queue        String    @default("pipeline")
+  name         String
+  channelId    String?
+  videoId      String?
+  state        JobState  @default(QUEUED)
+  payload      Json
+  attemptCount Int       @default(0)
+  maxAttempts  Int       @default(3)
+  lastError    String?
+  retryAt      DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel?   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  video   Video?     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  errors  JobError[]
+
+  @@index([state, retryAt])
+  @@index([videoId])
+  @@map("jobs")
+}
+
+model JobError {
+  id        String   @id @default(cuid())
+  jobId     String
+  attempt   Int
+  message   String
+  stack     String?
+  provider  String?
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("job_errors")
+}
+
+// ─────────────────────────────────────────────────────────── rules & notifications
+
+model AutomationRule {
+  id        String   @id @default(cuid())
+  channelId String
+  name      String
+  /// e.g. { "metric": "ideaScore", "op": "gt", "value": 80 }
+  condition Json
+  /// e.g. { "type": "produce" } | { "type": "requireApproval" }
+  action    Json
+  enabled   Boolean  @default(true)
+  priority  Int      @default(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, enabled])
+  @@map("automation_rules")
+}
+
+model NotificationTarget {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  /// Email address, Telegram chat id, webhook URL…
+  target    String
+  events    String[] @default([])
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, target])
+  @@map("notification_targets")
+}
+
+/// Reusable character description so recurring people look the same across scenes (spec §17).
+model CharacterProfile {
+  id          String   @id @default(cuid())
+  channelId   String
+  name        String
+  age         String?
+  gender      String?
+  clothing    String?
+  hair        String?
+  face        String?
+  bodyType    String?
+  style       String?
+  referenceKey String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, name])
+  @@map("character_profiles")
+}
+
+model MusicTrack {
+  id          String   @id @default(cuid())
+  title       String
+  source      String
+  license     String
+  attribution String?
+  durationSec Float
+  mood        String
+  storageKey  String
+  bpm         Int?
+  createdAt   DateTime @default(now())
+
+  @@index([mood])
+  @@map("music_tracks")
+}
