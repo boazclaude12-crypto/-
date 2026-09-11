@@ -611,7 +611,12 @@ export class InMemoryRepositories implements P.Repositories {
     },
     recordError: async (data) => this.t.jobErrors.insert({ createdAt: this.clock.now(), ...data }),
     listErrors: async (limit) =>
-      sortBy(this.t.jobErrors.all(), (e) => e.createdAt.getTime(), 'desc').slice(0, limit),
+      // Attempt number breaks the tie when two errors land in the same millisecond, so the
+      // admin screen shows the latest attempt first rather than an arbitrary one.
+      this.t.jobErrors
+        .all()
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.attempt - a.attempt)
+        .slice(0, limit),
   };
 
   readonly rules: P.RuleRepository = {

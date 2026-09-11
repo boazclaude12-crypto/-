@@ -16,12 +16,28 @@ import type {
   VideoMetrics,
 } from '../types.js';
 
-const OAUTH_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
-const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token';
-const OAUTH_REVOKE = 'https://oauth2.googleapis.com/revoke';
-const API = 'https://www.googleapis.com/youtube/v3';
-const UPLOAD = 'https://www.googleapis.com/upload/youtube/v3';
-const ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2';
+/**
+ * Google's endpoints. They are grouped so a test (or a corporate egress proxy) can point the
+ * adapter somewhere else without touching the request-building logic — which is the part
+ * that has to be exactly right.
+ */
+export interface YouTubeEndpoints {
+  oauthAuth: string;
+  oauthToken: string;
+  oauthRevoke: string;
+  api: string;
+  upload: string;
+  analytics: string;
+}
+
+export const GOOGLE_ENDPOINTS: YouTubeEndpoints = {
+  oauthAuth: 'https://accounts.google.com/o/oauth2/v2/auth',
+  oauthToken: 'https://oauth2.googleapis.com/token',
+  oauthRevoke: 'https://oauth2.googleapis.com/revoke',
+  api: 'https://www.googleapis.com/youtube/v3',
+  upload: 'https://www.googleapis.com/upload/youtube/v3',
+  analytics: 'https://youtubeanalytics.googleapis.com/v2',
+};
 
 /** Least-privilege scope set: read the channel, upload, and read the owner's analytics. */
 export const YOUTUBE_SCOPES = [
@@ -42,7 +58,14 @@ export class YouTubeProvider implements PublishingProvider {
   readonly name = 'YouTube';
   readonly capabilities: readonly Capability[] = ['publish'];
 
-  constructor(private readonly config: AppConfig) {}
+  private readonly endpoints: YouTubeEndpoints;
+
+  constructor(
+    private readonly config: AppConfig,
+    endpoints: Partial<YouTubeEndpoints> = {},
+  ) {
+    this.endpoints = { ...GOOGLE_ENDPOINTS, ...endpoints };
+  }
 
   private get creds() {
     return this.config.providers.youtube;
@@ -72,7 +95,7 @@ export class YouTubeProvider implements PublishingProvider {
 
   authorizeUrl(state: string, extraScopes: string[] = []): string {
     if (!this.isConfigured()) throw new ProviderNotConfiguredError(this.key, this.missingConfig());
-    const url = new URL(OAUTH_AUTH);
+    const url = new URL(this.endpoints.oauthAuth);
     url.searchParams.set('client_id', this.creds.clientId.reveal());
     url.searchParams.set('redirect_uri', this.creds.redirectUri);
     url.searchParams.set('response_type', 'code');
@@ -86,7 +109,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async exchangeCode(code: string): Promise<OAuthTokens> {
-    const res = await request<TokenResponse>(this.key, OAUTH_TOKEN, {
+    const res = await request<TokenResponse>(this.key, this.endpoints.oauthToken, {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       rawBody: new URLSearchParams({
         code,
@@ -101,7 +124,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async refresh(refreshToken: string): Promise<OAuthTokens> {
-    const res = await request<TokenResponse>(this.key, OAUTH_TOKEN, {
+    const res = await request<TokenResponse>(this.key, this.endpoints.oauthToken, {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       rawBody: new URLSearchParams({
         refresh_token: refreshToken,
@@ -116,7 +139,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async revoke(token: string): Promise<void> {
-    await request(this.key, OAUTH_REVOKE, {
+    await request(this.key, this.endpoints.oauthRevoke, {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       rawBody: new URLSearchParams({ token }).toString(),
       timeoutMs: 15_000,
@@ -126,7 +149,7 @@ export class YouTubeProvider implements PublishingProvider {
   // ── channel + video reads ────────────────────────────────────────────────
 
   async getChannel(accessToken: string): Promise<RemoteChannel> {
-    const res = await request<ChannelListResponse>(this.key, `${API}/channels`, {
+    const res = await request<ChannelListResponse>(this.key, `${this.endpoints.api}/channels`, {
       headers: { authorization: `Bearer ${accessToken}` },
       method: 'GET',
       query: { part: 'snippet,statistics,contentDetails', mine: 'true' },
@@ -138,7 +161,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async listChannelVideos(accessToken: string, channelId: string, limit = 25): Promise<RemoteVideo[]> {
-    const res = await request<SearchListResponse>(this.key, `${API}/search`, {
+    const res = await request<SearchListResponse>(this.key, `${this.endpoints.api}/search`, {
       headers: { authorization: `Bearer ${accessToken}` },
       method: 'GET',
       query: { part: 'snippet', channelId, order: 'date', type: 'video', maxResults: Math.min(limit, 50) },
@@ -153,7 +176,7 @@ export class YouTubeProvider implements PublishingProvider {
     const query = channelId.startsWith('UC')
       ? { part: 'snippet,statistics,contentDetails', id: channelId }
       : { part: 'snippet,statistics,contentDetails', forHandle: channelId };
-    const res = await request<ChannelListResponse>(this.key, `${API}/channels`, {
+    const res = await request<ChannelListResponse>(this.key, `${this.endpoints.api}/channels`, {
       method: 'GET',
       query: { ...query, key: this.requireApiKey() },
       timeoutMs: 30_000,
@@ -163,7 +186,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async listPublicVideos(channelId: string, limit = 25): Promise<RemoteVideo[]> {
-    const res = await request<SearchListResponse>(this.key, `${API}/search`, {
+    const res = await request<SearchListResponse>(this.key, `${this.endpoints.api}/search`, {
       method: 'GET',
       query: {
         part: 'snippet',
@@ -181,7 +204,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async searchTopics(query: string, limit = 25): Promise<RemoteVideo[]> {
-    const res = await request<SearchListResponse>(this.key, `${API}/search`, {
+    const res = await request<SearchListResponse>(this.key, `${this.endpoints.api}/search`, {
       method: 'GET',
       query: {
         part: 'snippet',
@@ -204,7 +227,7 @@ export class YouTubeProvider implements PublishingProvider {
     headers: Record<string, string>,
     apiKey?: string,
   ): Promise<RemoteVideo[]> {
-    const res = await request<VideoListResponse>(this.key, `${API}/videos`, {
+    const res = await request<VideoListResponse>(this.key, `${this.endpoints.api}/videos`, {
       headers,
       method: 'GET',
       query: {
@@ -255,7 +278,7 @@ export class YouTubeProvider implements PublishingProvider {
       ...(req.publishAt ? { publishAt: req.publishAt.toISOString() } : {}),
     };
 
-    const init = await request<unknown>(this.key, `${UPLOAD}/videos`, {
+    const init = await request<unknown>(this.key, `${this.endpoints.upload}/videos`, {
       headers: {
         authorization: `Bearer ${accessToken}`,
         'content-type': 'application/json; charset=UTF-8',
@@ -324,7 +347,7 @@ export class YouTubeProvider implements PublishingProvider {
   }
 
   async setThumbnail(accessToken: string, videoId: string, image: Buffer, mimeType: string): Promise<void> {
-    await request(this.key, `${UPLOAD}/thumbnails/set`, {
+    await request(this.key, `${this.endpoints.upload}/thumbnails/set`, {
       headers: { authorization: `Bearer ${accessToken}`, 'content-type': mimeType },
       query: { videoId, uploadType: 'media' },
       rawBody: image,
@@ -339,7 +362,7 @@ export class YouTubeProvider implements PublishingProvider {
     patch: { title?: string; description?: string; tags?: string[]; categoryId?: string },
   ): Promise<void> {
     // videos.update replaces the whole snippet, so the current values are read first.
-    const current = await request<VideoListResponse>(this.key, `${API}/videos`, {
+    const current = await request<VideoListResponse>(this.key, `${this.endpoints.api}/videos`, {
       headers: { authorization: `Bearer ${accessToken}` },
       method: 'GET',
       query: { part: 'snippet', id: videoId },
@@ -348,7 +371,7 @@ export class YouTubeProvider implements PublishingProvider {
     const snippet = current.data.items?.[0]?.snippet;
     if (!snippet) throw new ProviderError(this.key, `Video ${videoId} not found`, { retryable: false });
 
-    await request(this.key, `${API}/videos`, {
+    await request(this.key, `${this.endpoints.api}/videos`, {
       headers: { authorization: `Bearer ${accessToken}` },
       method: 'PUT',
       query: { part: 'snippet' },
@@ -384,7 +407,7 @@ export class YouTubeProvider implements PublishingProvider {
       'subscribersGained',
     ];
 
-    const report = await request<AnalyticsReport>(this.key, `${ANALYTICS}/reports`, {
+    const report = await request<AnalyticsReport>(this.key, `${this.endpoints.analytics}/reports`, {
       headers: { authorization: `Bearer ${accessToken}` },
       method: 'GET',
       query: {
@@ -409,7 +432,7 @@ export class YouTubeProvider implements PublishingProvider {
     let impressions = 0;
     let ctr = 0;
     try {
-      const ctrReport = await request<AnalyticsReport>(this.key, `${ANALYTICS}/reports`, {
+      const ctrReport = await request<AnalyticsReport>(this.key, `${this.endpoints.analytics}/reports`, {
         headers: { authorization: `Bearer ${accessToken}` },
         method: 'GET',
         query: {

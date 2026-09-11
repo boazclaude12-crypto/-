@@ -273,6 +273,24 @@ describe('full production pipeline', () => {
     expect(jobs.every((j) => j.state === 'SUCCEEDED')).toBe(true);
   }, 300_000);
 
+  it('leaves no orphaned jobs when the pipeline is driven inline', async () => {
+    if (!(await ffmpegAvailable(ctx))) return;
+
+    const seeded = await seedChannel(ctx, { automationMode: 'FULL_AUTO', targetDurationMin: 4 });
+    await ctx.services.ideas.generate(seeded.channel, seeded.settings, { count: 2 });
+    const best = await ctx.services.ideas.pickBest(seeded.channel.id, seeded.settings);
+    const started = await ctx.services.production.startFromIdea(best!.id);
+
+    await ctx.services.runner.runToCompletion(started.video.id);
+
+    // `startFromIdea` queues the first step for a worker; the inline runner must not queue
+    // a follow-up for every subsequent step and leave them pending forever.
+    const jobs = await ctx.repos.jobs.listByVideo(started.video.id);
+    const queued = jobs.filter((j) => j.state === 'QUEUED');
+    expect(queued).toHaveLength(1);
+    expect(jobs).toHaveLength(1);
+  }, 300_000);
+
   it('falls back to another provider when the primary keeps failing', async () => {
     const seeded = await seedChannel(ctx);
 

@@ -77,11 +77,40 @@ by owner, so cross-tenant access is structurally impossible rather than merely c
 
 ## Migrations
 
+The initial migration is checked in at
+`apps/server/prisma/migrations/20260911095430_initial_schema/migration.sql` — 38 tables, their
+enums, indexes and foreign keys. It has to exist in the repository: `prisma migrate deploy`
+applies migrations, it does not derive them, so a deploy against an empty database would
+otherwise do nothing at all and the API would start against no tables.
+
 ```bash
 npm run prisma:generate --workspace @ycf/server   # client
 npm run prisma:dev --workspace @ycf/server        # create a migration in development
 npm run prisma:migrate --workspace @ycf/server    # apply in production
 ```
 
+`docker compose` runs `prisma migrate deploy` before the API starts, so a fresh stack comes up
+with the schema already applied.
+
+## Two adapters, one contract
+
 The domain never imports `@prisma/client`: repositories are ports with a Prisma adapter and an
 in-memory adapter, which is what lets the whole pipeline and its tests run without a database.
+
+That only holds if the two adapters actually agree, so `src/test/repositories.test.ts` runs one
+set of assertions against both — the in-memory one always, the Prisma one whenever
+`TEST_DATABASE_URL` is set:
+
+```bash
+cd apps/server
+TEST_DATABASE_URL=postgresql://factory:factory@127.0.0.1:5432/factory npm test
+```
+
+It pins the behaviour that differs when you are not careful: duplicate keys surfacing as a
+domain conflict rather than a driver error, case-insensitive email lookup, ordering with a
+deterministic tiebreaker when two rows share a millisecond, 64-bit counters surviving a round
+trip (view counts past 2³¹, file sizes past 4 GiB), JSON and array columns coming back with the
+same shape, cascade deletes reaching every child table, and every writable column surviving
+`create`. That last one is not hypothetical — it caught the Prisma `videos.create` silently
+dropping `publishAt` and thirteen other fields, which showed up only as a scheduler that never
+found anything to publish.

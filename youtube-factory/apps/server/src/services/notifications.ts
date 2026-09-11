@@ -20,6 +20,13 @@ export interface NotificationMessage {
 export interface NotificationChannel {
   readonly kind: string;
   isConfigured(): boolean;
+  /**
+   * True when the channel carries no instance-wide credential and is usable purely because
+   * each target supplies its own endpoint — an incoming webhook URL, for instance. Reported
+   * separately so `doctor` can say "ready once you add a target" instead of "configured",
+   * which would read as though notifications were already going somewhere.
+   */
+  readonly targetSuppliesEndpoint?: boolean;
   send(target: string, message: NotificationMessage): Promise<void>;
 }
 
@@ -40,8 +47,12 @@ export class Notifier {
     return this;
   }
 
-  available(): Array<{ kind: string; configured: boolean }> {
-    return [...this.channels.values()].map((c) => ({ kind: c.kind, configured: c.isConfigured() }));
+  available(): Array<{ kind: string; configured: boolean; targetSuppliesEndpoint: boolean }> {
+    return [...this.channels.values()].map((c) => ({
+      kind: c.kind,
+      configured: c.isConfigured(),
+      targetSuppliesEndpoint: c.targetSuppliesEndpoint === true,
+    }));
   }
 
   /** Delivery failures are logged, never propagated — a dead webhook must not fail a render. */
@@ -113,6 +124,7 @@ export class TelegramChannel implements NotificationChannel {
 
 export class DiscordChannel implements NotificationChannel {
   readonly kind = 'discord';
+  readonly targetSuppliesEndpoint = true;
   constructor(private readonly defaultWebhook?: string) {}
 
   isConfigured(): boolean {
@@ -121,7 +133,10 @@ export class DiscordChannel implements NotificationChannel {
 
   async send(target: string, message: NotificationMessage): Promise<void> {
     const url = target || this.defaultWebhook;
-    if (!url) return;
+    // Throwing puts the reason in the log the notifier already writes. Returning here would
+    // drop the message and still count as a healthy channel, which is the failure mode that
+    // makes people believe alerts are working when nothing is being delivered.
+    if (!url) throw new Error('discord target has no webhook URL, and DISCORD_WEBHOOK_URL is unset');
     await request('discord', url, {
       body: {
         embeds: [
@@ -140,6 +155,7 @@ export class DiscordChannel implements NotificationChannel {
 
 export class SlackChannel implements NotificationChannel {
   readonly kind = 'slack';
+  readonly targetSuppliesEndpoint = true;
   constructor(private readonly defaultWebhook?: string) {}
 
   isConfigured(): boolean {
@@ -148,7 +164,7 @@ export class SlackChannel implements NotificationChannel {
 
   async send(target: string, message: NotificationMessage): Promise<void> {
     const url = target || this.defaultWebhook;
-    if (!url) return;
+    if (!url) throw new Error('slack target has no webhook URL, and SLACK_WEBHOOK_URL is unset');
     await request('slack', url, {
       body: {
         text: `*${message.title}*\n${message.body}${message.url ? `\n<${message.url}|Open in the dashboard>` : ''}`,

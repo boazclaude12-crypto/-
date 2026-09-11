@@ -7,8 +7,18 @@
 the router never selects it, and the Providers screen names the exact variables to set. That is
 the difference between a system that degrades and one that pretends (spec §81).
 
-Variable names follow each vendor's own documentation. `HF_CREDENTIALS` is what the Higgsfield
-SDK reads; `ELEVENLABS_API_KEY` is what ElevenLabs documents. They are not renamed for tidiness.
+Variable names follow each vendor's own documentation, read from that vendor's published SDK
+rather than guessed (spec §74). `HF_CREDENTIALS` — a single `KEY_ID:KEY_SECRET` string — is what
+the Higgsfield SDK reads; `ELEVENLABS_API_KEY` is what ElevenLabs documents;
+`ANTHROPIC_API_KEY` is what Anthropic documents. They are not renamed for tidiness. Where a
+second spelling is common it is accepted as an alias rather than substituted, so a key pasted
+from either the vendor's docs or the spec works.
+
+Adding a provider is only setting its variables: there is no code to change and no restart
+ordering to get right. On the next call the registry sees `configured: true`, the router starts
+selecting it by cost and health, and `factory doctor` flips it from "not configured" to
+"configured". Until then the same pipeline runs through the mock, so nothing is blocked while
+you wait for a key.
 
 ## Core
 
@@ -47,7 +57,7 @@ Spaces. `S3_PUBLIC_BASE_URL` is used when generating asset URLs for the dashboar
 
 | Group | Variables | Without it |
 |---|---|---|
-| Anthropic | `CLAUDE_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_FAST_MODEL` | Text and structured output fall to OpenAI. |
+| Anthropic | `ANTHROPIC_API_KEY` (Anthropic's documented name) or `CLAUDE_API_KEY`; `ANTHROPIC_MODEL`, `ANTHROPIC_FAST_MODEL` | Text and structured output fall to OpenAI. |
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_IMAGE_MODEL` | No text fallback; images fall to Higgsfield or the local generator. |
 | Higgsfield | `HF_CREDENTIALS` (`KEY_ID:KEY_SECRET`) or `HF_API_KEY` + `HF_API_SECRET`; `HIGGSFIELD_VIDEO_MODEL`; optional `HIGGSFIELD_WEBHOOK_URL` | No generated video; scenes use image + camera motion. |
 | ElevenLabs | `ELEVENLABS_API_KEY`, `ELEVENLABS_MODEL`, `ELEVENLABS_DEFAULT_VOICE_ID` | **No narration is possible** — this is the one capability with no free fallback outside offline mode. |
@@ -68,6 +78,19 @@ one notification channel; an unconfigured channel is skipped rather than failing
 `RENDER_HEIGHT`, `RENDER_FPS`, `RENDER_CRF`, `RENDER_PRESET`, `MEDIA_WORK_DIR`,
 `MAX_CONCURRENT_RENDERS`, `DEFAULT_MONTHLY_BUDGET_USD`, `PROVIDER_TIMEOUT_MS`,
 `PROVIDER_MAX_ATTEMPTS`.
+
+## Test-only variables
+
+None of these are read by the running system — they exist so a test suite can attach to a real
+service instead of skipping. All optional.
+
+| Variable | Effect when set |
+|---|---|
+| `TEST_DATABASE_URL` | Re-runs the repository suite against PostgreSQL, asserting the Prisma adapter matches the in-memory one |
+| `TEST_REDIS_URL` | Re-runs the queue suite against BullMQ |
+| `TEST_S3_ENDPOINT` | Points the storage suite at a real S3/MinIO instead of the in-process S3 server. `TEST_S3_BUCKET`, `TEST_S3_REGION`, `TEST_S3_ACCESS_KEY` and `TEST_S3_SECRET_KEY` go with it |
+
+`npm run test:services` sets the first two to the `docker compose` defaults.
 
 ## Verifying
 

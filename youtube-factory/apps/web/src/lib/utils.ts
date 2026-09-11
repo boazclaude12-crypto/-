@@ -79,3 +79,13 @@ export function scoreTone(score: number | null | undefined): 'success' | 'warnin
   if (score >= 60) return 'warning';
   return 'destructive';
 }
+
+/**
+ * How a notification channel's readiness reads on screen. A channel whose endpoint comes from
+ * the target itself — a Discord or Slack incoming webhook — is usable without any instance
+ * credential, but calling that "configured" implies messages are already going somewhere.
+ */
+export function channelState(channel: { configured: boolean; targetSuppliesEndpoint?: boolean }): string {
+  if (!channel.configured) return '(not configured)';
+  return channel.targetSuppliesEndpoint ? '(per-target webhook)' : '';
+}

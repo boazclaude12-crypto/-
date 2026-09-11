@@ -121,7 +121,17 @@ export class PipelineRunner {
    */
   async advance(
     videoId: string,
-    opts: { expectStatus?: VideoStatus; jobId?: string; attempt?: number; signal?: AbortSignal } = {},
+    opts: {
+      expectStatus?: VideoStatus;
+      jobId?: string;
+      attempt?: number;
+      signal?: AbortSignal;
+      /**
+       * Queue the follow-up step. `runToCompletion` drives the loop itself and passes
+       * false, so the CLI does not leave orphaned QUEUED rows behind it.
+       */
+      enqueueFollowUp?: boolean;
+    } = {},
   ): Promise<AdvanceOutcome> {
     const video = await this.deps.repos.videos.findById(videoId);
     if (!video) throw new NotFoundError('Video');
@@ -257,8 +267,9 @@ export class PipelineRunner {
         costUsd: actualCost,
       });
 
-      const shouldContinue = result.enqueueNext !== false && result.status !== 'FAILED';
-      if (shouldContinue && this.steps.has(result.status)) {
+      const hasNextStep =
+        result.enqueueNext !== false && result.status !== 'FAILED' && this.steps.has(result.status);
+      if (hasNextStep && opts.enqueueFollowUp !== false) {
         await this.enqueue(video.id, {
           delayMs: result.delayMs,
           reason: `after ${step.name}`,
@@ -273,7 +284,7 @@ export class PipelineRunner {
         step: step.name,
         note: result.note,
         waitingForApproval: result.waitingForApproval,
-        enqueuedNext: shouldContinue && this.steps.has(result.status),
+        enqueuedNext: hasNextStep,
       };
     } catch (err) {
       const attempt = opts.attempt ?? 1;
@@ -324,7 +335,8 @@ export class PipelineRunner {
       if (opts.stopAt && video.status === opts.stopAt) break;
       if (!this.steps.has(video.status)) break;
 
-      const outcome = await this.advance(videoId, { jobId: newId('cli') });
+      // The loop is the driver here, so no follow-up job is queued for someone else to run.
+      const outcome = await this.advance(videoId, { jobId: newId('cli'), enqueueFollowUp: false });
       outcomes.push(outcome);
       if (outcome.waitingForApproval || outcome.step === 'none') break;
       if (!outcome.enqueuedNext && outcome.to === video.status) break;

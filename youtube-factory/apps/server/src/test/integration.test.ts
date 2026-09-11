@@ -10,6 +10,7 @@ import { MockLLMProvider } from '../providers/mock/index.js';
 import { CostOptimizer } from '../services/cost.js';
 import { usd } from '../shared/types.js';
 import { AesGcmEncryptor } from '../shared/crypto.js';
+import { DiscordChannel, Notifier, SlackChannel } from '../services/notifications.js';
 
 let ctx: TestContext;
 
@@ -421,6 +422,47 @@ describe('notifications', () => {
       event: 'QC_FAILED', title: 'Failed', body: 'nope',
     });
     expect(other).toBe(1);
+  });
+
+  it('fails loudly rather than dropping a webhook message with nowhere to go', async () => {
+    const seeded = await seedChannel(ctx);
+    const logger = new MemoryLogger();
+    const notifier = new Notifier(ctx.repos.notifications, logger)
+      .register(new DiscordChannel())
+      .register(new SlackChannel());
+
+    for (const kind of ['discord', 'slack']) {
+      await ctx.repos.notifications.create({
+        userId: seeded.user.id, kind, target: '', events: [], enabled: true,
+      });
+    }
+
+    // Neither target carries a URL and no default webhook is configured. A silent `return`
+    // here would report a healthy delivery and send nothing, so the count must stay at zero
+    // and the reason must reach the log.
+    const delivered = await notifier.notify(seeded.user.id, {
+      event: 'UPLOAD_SUCCESS', title: 'Published', body: 'done',
+    });
+    expect(delivered).toBe(0);
+
+    const warnings = logger.lines
+      .map((line) => JSON.parse(line) as { msg: string; kind?: string; error?: string })
+      .filter((entry) => entry.msg === 'notification delivery failed');
+    expect(warnings).toHaveLength(2);
+    expect(warnings.map((w) => w.kind).sort()).toEqual(['discord', 'slack']);
+    for (const warning of warnings) {
+      expect(warning.error).toContain('webhook URL');
+    }
+  });
+
+  it('reports webhook channels as target-supplied rather than plain "configured"', () => {
+    const notifier = new Notifier(ctx.repos.notifications)
+      .register(new DiscordChannel())
+      .register(new SlackChannel());
+    for (const entry of notifier.available()) {
+      expect(entry.configured).toBe(true);
+      expect(entry.targetSuppliesEndpoint).toBe(true);
+    }
   });
 });
 

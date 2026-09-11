@@ -10,8 +10,33 @@ npm run factory --workspace @ycf/server -- doctor        # what is configured, w
 docker compose up --build
 ```
 
+`compose` brings up postgres, redis and minio, runs `prisma migrate deploy` as a one-shot
+`migrate` service, and only then starts the API, the worker and the dashboard. Running
+outside compose, apply migrations yourself first:
+
+```bash
+npm run prisma:migrate --workspace @ycf/server
+```
+
 Open `http://localhost:3000`, create the first account (it becomes `ADMIN`), create a channel,
 connect it to YouTube, then turn on Autopilot.
+
+## Verifying a deployment
+
+```bash
+npm test                    # 200 tests — no services, no credentials, no network
+npm run test:services       # 229 — adds PostgreSQL and Redis (see README for the URLs)
+npm run factory --workspace @ycf/server -- doctor
+```
+
+`npm test` is the gate for a change. `test:services` is the gate for a release: it re-runs the
+repository suite against PostgreSQL and the queue suite against real BullMQ, which is where
+adapter drift shows up — a Prisma `create` that silently drops a column, an ordering that is
+only stable in memory, a counter that overflows 32 bits.
+
+After a deploy, `doctor` is the one command that answers "is this instance actually able to
+produce a video": it prints the database, queue, storage and FFmpeg state, then every provider
+as configured / not configured / unhealthy with the missing variables named.
 
 ## Daily operation
 

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, Input, Select } from '@/components/ui/input';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { channelState } from '@/lib/utils';
 
 const EVENTS = [
   'IDEA_READY', 'SCRIPT_READY', 'VIDEO_READY', 'UPLOAD_SUCCESS', 'UPLOAD_FAILED',
@@ -19,7 +20,7 @@ const EVENTS = [
 
 interface TargetsResponse {
   targets: Array<{ id: string; kind: string; target: string; events: string[]; enabled: boolean }>;
-  channels: Array<{ kind: string; configured: boolean }>;
+  channels: Array<{ kind: string; configured: boolean; targetSuppliesEndpoint: boolean }>;
 }
 
 export default function SettingsPage() {
@@ -102,8 +103,7 @@ export default function SettingsPage() {
             <div className="flex flex-wrap gap-1.5">
               {data?.channels.map((channel) => (
                 <Badge key={channel.kind} variant={channel.configured ? 'success' : 'muted'}>
-                  {channel.kind}
-                  {channel.configured ? '' : ' (not configured)'}
+                  {channel.kind} {channelState(channel)}
                 </Badge>
               ))}
             </div>

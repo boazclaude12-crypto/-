@@ -5,6 +5,7 @@ import { useQuery } from '@/hooks/use-api';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { channelState } from '@/lib/utils';
 
 interface ProvidersResponse {
   offline: boolean;
@@ -12,7 +13,7 @@ interface ProvidersResponse {
     key: string; name: string; capabilities: string[]; configured: boolean;
     missingEnv: string[]; healthy: boolean; detail?: string; latencyMs?: number;
   }>;
-  notifications: Array<{ kind: string; configured: boolean }>;
+  notifications: Array<{ kind: string; configured: boolean; targetSuppliesEndpoint: boolean }>;
   storage: string;
   queue: string;
   ffmpeg: boolean;
@@ -98,7 +99,7 @@ export default function ProvidersPage() {
         <CardContent className="flex flex-wrap gap-2">
           {data.notifications.map((channel) => (
             <Badge key={channel.kind} variant={channel.configured ? 'success' : 'muted'}>
-              {channel.kind} {channel.configured ? '' : '(not configured)'}
+              {channel.kind} {channelState(channel)}
             </Badge>
           ))}
         </CardContent>

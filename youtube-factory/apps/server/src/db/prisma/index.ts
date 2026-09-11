@@ -100,6 +100,7 @@ export class PrismaRepositories implements P.Repositories {
             subscriberCount: data.subscriberCount ?? null,
             videoCount: data.videoCount ?? null,
             viewCount: toBigInt(data.viewCount),
+            statsFetchedAt: data.statsFetchedAt ?? null,
             enabled: data.enabled,
             isDefault: data.isDefault,
           },
@@ -199,6 +200,7 @@ export class PrismaRepositories implements P.Repositories {
               uploadFrequency: data.uploadFrequency ?? null,
               avgViews: data.avgViews ?? null,
               avgDurationSec: data.avgDurationSec ?? null,
+              lastAnalyzedAt: data.lastAnalyzedAt ?? null,
               snapshot: json(data.snapshot),
             },
           }),
@@ -240,6 +242,7 @@ export class PrismaRepositories implements P.Repositories {
             label: data.label,
             target: data.target,
             enabled: data.enabled,
+            lastRunAt: data.lastRunAt ?? null,
           },
         }),
       ),
@@ -365,6 +368,8 @@ export class PrismaRepositories implements P.Repositories {
   // ── videos ─────────────────────────────────────────────────────────────────
 
   readonly videos: P.VideoRepository = {
+    // Every writable column is listed. An enumerated `create` that omits a field silently
+    // drops it, which is a data-loss bug that only shows up later as an empty query result.
     create: async (data) =>
       mapVideo(
         await this.db.video.create({
@@ -374,11 +379,25 @@ export class PrismaRepositories implements P.Repositories {
             templateId: data.templateId ?? null,
             title: data.title,
             status: data.status,
+            previousStatus: data.previousStatus ?? null,
             progress: json(data.progress),
             targetDurationSec: data.targetDurationSec,
+            actualDurationSec: data.actualDurationSec ?? null,
             language: data.language,
+            renderKey: data.renderKey ?? null,
+            renderWidth: data.renderWidth ?? null,
+            renderHeight: data.renderHeight ?? null,
+            fileSizeBytes: toBigInt(data.fileSizeBytes),
+            qualityScore: data.qualityScore ?? null,
+            qualityBreakdown: json(data.qualityBreakdown),
+            factConfidence: data.factConfidence ?? null,
+            retentionScore: data.retentionScore ?? null,
             estimatedCostUsd: data.estimatedCostUsd,
             actualCostUsd: data.actualCostUsd,
+            failureReason: data.failureReason ?? null,
+            publishAt: data.publishAt ?? null,
+            publishedAt: data.publishedAt ?? null,
+            youtubeVideoId: data.youtubeVideoId ?? null,
           },
         }),
       ),
@@ -1257,7 +1276,13 @@ export class PrismaRepositories implements P.Repositories {
         }),
       ),
     listErrors: async (limit) =>
-      (await this.db.jobError.findMany({ orderBy: { createdAt: 'desc' }, take: limit })).map(mapJobError),
+      (
+        await this.db.jobError.findMany({
+          // Attempt number breaks the tie when two errors share a timestamp.
+          orderBy: [{ createdAt: 'desc' }, { attempt: 'desc' }],
+          take: limit,
+        })
+      ).map(mapJobError),
   };
 
   readonly rules: P.RuleRepository = {

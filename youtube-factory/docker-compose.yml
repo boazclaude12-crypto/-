@@ -62,6 +62,22 @@ services:
       echo 'bucket ready'
       "
 
+  # Applies prisma/migrations, then exits. The runtime image is installed with
+  # --omit=dev and so has no Prisma CLI; the build stage does, which is why this
+  # targets it rather than adding the CLI to the image that ships.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: build
+    working_dir: /app/apps/server
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    environment:
+      DATABASE_URL: postgresql://factory:factory@postgres:5432/factory
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
   api:
     build:
       context: .
@@ -83,6 +99,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
     ports:
       - '4000:4000'
     healthcheck:

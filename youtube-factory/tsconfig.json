@@ -1,0 +1,14 @@
+{
+  // Workspace root. Each app has its own tsconfig; this exists so tools that walk upward
+  // looking for one stop here instead of reaching the repository root, which belongs to a
+  // different project and extends a preset this workspace does not install.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "files": []
+}

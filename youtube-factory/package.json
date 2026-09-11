@@ -11,6 +11,9 @@
     "build": "npm run build --workspace @ycf/server && npm run build --workspace @ycf/web",
     "typecheck": "npm run typecheck --workspace @ycf/server && npm run typecheck --workspace @ycf/web",
     "test": "npm run test --workspace @ycf/server",
+    "test:services": "npm run test:services --workspace @ycf/server",
+    "test:adapters": "npm run test:adapters --workspace @ycf/server",
+    "test:acceptance": "npm run test:acceptance --workspace @ycf/server",
     "prisma:generate": "npm run prisma:generate --workspace @ycf/server",
     "prisma:migrate": "npm run prisma:migrate --workspace @ycf/server",
     "seed": "npm run seed --workspace @ycf/server"

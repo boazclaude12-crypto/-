@@ -112,7 +112,12 @@ async function cmdDoctor(services: AppServices): Promise<number> {
   log('');
   log('Notification channels:');
   for (const channel of services.notifier.available()) {
-    log(`  ${channel.kind.padEnd(12)} ${channel.configured ? 'configured' : 'not configured'}`);
+    const state = !channel.configured
+      ? 'not configured'
+      : channel.targetSuppliesEndpoint
+        ? 'ready — each target supplies its own webhook URL'
+        : 'configured';
+    log(`  ${channel.kind.padEnd(12)} ${state}`);
   }
   return ffmpegOk ? 0 : 1;
 }
