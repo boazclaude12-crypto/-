@@ -9,6 +9,7 @@ import { PIPELINE_STAGES } from '../pipeline/state-machine.js';
 /**
  * `factory` — the operator CLI.
  *
+ *   factory quickstart [--niche …]    demo + ideas + produce, in one process
  *   factory seed                      write prompts, templates and the music library
  *   factory demo [--niche …]          create a demo user + channel and seed everything
  *   factory doctor                    report provider, storage, queue and FFmpeg health
@@ -39,6 +40,8 @@ async function main(): Promise<number> {
         return await cmdSeed(services);
       case 'demo':
         return await cmdDemo(services, args);
+      case 'quickstart':
+        return await cmdQuickstart(services, args);
       case 'doctor':
         return await cmdDoctor(services);
       case 'ideas':
@@ -73,6 +76,11 @@ async function cmdSeed(services: AppServices): Promise<number> {
 }
 
 async function cmdDemo(services: AppServices, args: string[]): Promise<number> {
+  await runDemo(services, args);
+  return 0;
+}
+
+async function runDemo(services: AppServices, args: string[]) {
   const opts = parseFlags(args);
   const result = await seedDemoChannel(services, {
     email: opts.email ?? 'owner@example.com',
@@ -89,7 +97,36 @@ async function cmdDemo(services: AppServices, args: string[]): Promise<number> {
   log(`Automation mode: ${result.settings.automationMode}, ${result.settings.videosPerWeek} videos/week`);
   log('');
   log(`Next:  factory ideas ${result.channel.id}`);
-  return 0;
+  return result;
+}
+
+/**
+ * The whole factory in one command.
+ *
+ * `demo`, `ideas` and `produce` are separate processes, and with no DATABASE_URL each one
+ * gets its own in-memory database — so the channel the first creates does not exist for the
+ * second. Chaining them here keeps the "no services, no credentials" promise honest instead
+ * of handing someone a three-command sequence that cannot work.
+ */
+async function cmdQuickstart(services: AppServices, args: string[]): Promise<number> {
+  if (!services.config.database.url) {
+    log('No DATABASE_URL — running everything in one process against the in-memory database.');
+    log('Nothing is persisted after this command exits. Set DATABASE_URL to keep the result.\n');
+  }
+
+  const { channel, settings } = await runDemo(services, args);
+
+  log('');
+  log('Generating ideas…');
+  const generated = await services.ideas.generate(channel, settings, { count: 5 });
+  const best = [...generated.ideas].sort((a, b) => b.overallScore - a.overallScore)[0];
+  if (!best) return fail('No ideas were generated.');
+  log(`  ${generated.ideas.length} ideas from ${generated.signalsUsed} trend signals.`);
+  log(`  Best: [${best.overallScore}] ${best.title}\n`);
+
+  log('Producing…');
+  const started = await services.production.startFromIdea(best.id);
+  return runPipeline(services, started.video.id);
 }
 
 async function cmdDoctor(services: AppServices): Promise<number> {
@@ -238,6 +275,7 @@ function parseFlags(args: string[]): Record<string, string> {
 function printUsage(): void {
   log(`YouTube Content Factory — operator CLI
 
+  factory quickstart [--niche …]     Everything at once: demo + ideas + produce one video
   factory seed                       Write prompts, content templates and the music library
   factory demo [--email --password --channel --niche --mode --duration --videosPerWeek]
   factory doctor                     Provider, storage, queue and FFmpeg health

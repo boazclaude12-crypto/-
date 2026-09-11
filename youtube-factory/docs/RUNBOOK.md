@@ -10,6 +10,14 @@ npm run factory --workspace @ycf/server -- doctor        # what is configured, w
 docker compose up --build
 ```
 
+To see the factory produce a video before configuring anything:
+
+```bash
+OFFLINE_MODE=true npm run factory --workspace @ycf/server -- quickstart
+```
+
+One process, no services, no credentials, about a minute, and a real 1080p MP4 at the end.
+
 `compose` brings up postgres, redis and minio, runs `prisma migrate deploy` as a one-shot
 `migrate` service, and only then starts the API, the worker and the dashboard. Running
 outside compose, apply migrations yourself first:

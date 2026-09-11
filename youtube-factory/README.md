@@ -26,19 +26,32 @@ Two properties shape everything here:
 ```bash
 cd youtube-factory
 npm install
-export OFFLINE_MODE=true
+OFFLINE_MODE=true npm run factory --workspace @ycf/server -- quickstart --niche "European history"
+```
 
-# Create a user and a fully configured channel
+That one command runs the real pipeline — channel setup, trend signals, scored ideas,
+research, script, fact check, scene plan, visuals, narration, FFmpeg render, QC, thumbnail,
+SEO — and prints the path to a playable MP4 under
+`.storage/channels/<channelId>/videos/<videoId>/renders/final.mp4`, alongside the SRT/VTT
+captions, the thumbnail variants and the per-scene clips.
+
+It takes about a minute and costs nothing: every provider is its mock, but the render is real
+FFmpeg and the output is a real 1920×1080 H.264/AAC file.
+
+To drive the steps yourself instead:
+
+```bash
+export DATABASE_URL=postgresql://factory:factory@localhost:5432/factory
+npm run prisma:migrate --workspace @ycf/server
 npm run factory --workspace @ycf/server -- demo --niche "European history"
-
-# Generate and score ideas, then produce one end to end
 npm run factory --workspace @ycf/server -- ideas <channelId>
 npm run factory --workspace @ycf/server -- produce <ideaId>
 ```
 
-The last command runs the real pipeline — research, script, fact check, scenes, visuals,
-narration, FFmpeg render, QC, thumbnail, SEO, scheduling — and leaves a playable MP4 under
-`.storage/channels/<channelId>/videos/<videoId>/renders/final.mp4`.
+> `DATABASE_URL` is what makes the sequence work. Each CLI invocation is its own process, and
+> without a database the repositories are in-memory — so the channel the first command creates
+> would not exist for the second. `quickstart` exists to keep the no-services path in one
+> process rather than pretending otherwise.
 
 FFmpeg must be on `PATH`; `factory doctor` tells you what is missing.
 
@@ -93,6 +106,7 @@ endpoints each adapter targets.
 
 | Command | What it does |
 |---|---|
+| `factory quickstart` | Everything at once: demo, ideas, and one video produced end to end |
 | `factory demo` | Create a user and a fully configured channel |
 | `factory doctor` | Provider, storage, queue and FFmpeg health |
 | `factory ideas <channelId>` | Generate and score ideas |
