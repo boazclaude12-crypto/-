@@ -81,9 +81,11 @@ npm run dev:worker --workspace @ycf/server    # queue worker
 npm run dev:web                               # dashboard on :3000
 ```
 
-> `PUBLIC_APP_URL` and `NEXT_PUBLIC_API_URL` must use the same hostname. Mixing `localhost`
-> and `127.0.0.1` between them makes the two different sites, and the browser will drop the
-> session cookie.
+> `PUBLIC_APP_URL` and `NEXT_PUBLIC_API_URL` must sit under the same registrable domain and
+> the same scheme. The session cookie is `SameSite=Lax`, so `factory.example.com` and
+> `api.factory.example.com` are fine, but two unrelated domains are not, and mixing
+> `localhost` with `127.0.0.1` is not — the browser drops the cookie and you are logged out
+> on every request. See `docs/DEPLOYMENT.md`.
 
 ---
 
@@ -91,7 +93,7 @@ npm run dev:web                               # dashboard on :3000
 
 ```
 youtube-factory/
-├── docs/                    ARCHITECTURE · DATABASE · API · AGENTS · ENVIRONMENT · ROADMAP · RUNBOOK
+├── docs/                    ARCHITECTURE · DATABASE · API · AGENTS · ENVIRONMENT · DEPLOYMENT · ROADMAP · RUNBOOK
 ├── docker-compose.yml       postgres · redis · minio · api · worker · web
 └── apps/
     ├── server/              domain, providers, agents, pipeline, media, HTTP, CLI, tests

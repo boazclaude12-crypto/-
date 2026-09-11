@@ -46,6 +46,9 @@ After a deploy, `doctor` is the one command that answers "is this instance actua
 produce a video": it prints the database, queue, storage and FFmpeg state, then every provider
 as configured / not configured / unhealthy with the missing variables named.
 
+For a real deployment — a VPS, domains, TLS, and what stays manual — see
+`docs/DEPLOYMENT.md`.
+
 ## Daily operation
 
 The worker drives itself:
@@ -88,9 +91,11 @@ cause is addressed.
 **OAuth expired.** The pipeline refreshes automatically while a refresh token exists. If it was
 revoked upstream, reconnect the channel — the error message says exactly that.
 
-**Session cookie not sticking.** `PUBLIC_APP_URL` and `NEXT_PUBLIC_API_URL` must use the same
-hostname. `localhost` and `127.0.0.1` are different sites to a browser, and a `SameSite=Lax`
-cookie set by one will not be sent to the other.
+**Session cookie not sticking.** `PUBLIC_APP_URL` and `NEXT_PUBLIC_API_URL` must share a
+registrable domain and a scheme. Subdomains of one domain are fine — `factory.example.com` and
+`api.factory.example.com` are the same site — but two unrelated domains are not, and neither
+are `localhost` and `127.0.0.1`. A `SameSite=Lax` cookie set by one site is not sent to
+another.
 
 ## Backup
 
