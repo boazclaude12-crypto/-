@@ -1,19 +1,77 @@
+import { getDb } from '@/lib/db/index';
+import { hashPassword } from '@/lib/auth/password';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Liveness check.
+ * Liveness check, and — with `?deep=1` — a timing breakdown.
  *
- * Deliberately touches nothing — no database, no session, no disk. Its only job is to
- * answer the question "did the request reach the application at all", which is the one
- * thing that cannot be told apart from the outside when a host's gateway returns an
- * error of its own. It is also what a platform healthcheck should point at: a check that
- * queried the database would report the app as dead whenever the database was merely
- * busy.
+ * The plain check deliberately touches nothing: no database, no session, no disk, so it
+ * stays truthful when exactly those are the things under strain. That is what makes the
+ * deep variant meaningful. When the bare check answers instantly and every real page
+ * crawls, the difference between them is the whole diagnosis, and these are the four
+ * costs that separate them on a managed host: opening the database, reading it, writing
+ * to it — the one that pays for network-backed storage on every commit — and hashing a
+ * password, which is CPU-bound by design and therefore the first casualty of a throttled
+ * container.
+ *
+ * Open to anyone on purpose: it reports durations, never data, and needing a session to
+ * run it would make it useless precisely when signing in is what has broken.
  */
-export function GET() {
-  return Response.json(
-    { ok: true, at: new Date().toISOString(), port: process.env.PORT ?? null },
-    { headers: { 'cache-control': 'no-store' } },
-  );
+export async function GET(request: Request) {
+  const base = { ok: true, at: new Date().toISOString(), port: process.env.PORT ?? null };
+  if (new URL(request.url).searchParams.get('deep') !== '1') {
+    return Response.json(base, { headers: { 'cache-control': 'no-store' } });
+  }
+
+  const timings: Record<string, number> = {};
+  const time = async (label: string, fn: () => unknown | Promise<unknown>) => {
+    const started = performance.now();
+    try {
+      await fn();
+    } catch (caught) {
+      timings[`${label}_failed`] = 1;
+      timings[label] = Math.round(performance.now() - started);
+      throw caught;
+    }
+    timings[label] = Math.round(performance.now() - started);
+  };
+
+  try {
+    let db!: ReturnType<typeof getDb>;
+    await time('db_open_ms', () => { db = getDb(); });
+    await time('db_read_ms', () => db.get('SELECT COUNT(*) AS n FROM users'));
+    await time('db_write_ms', () => {
+      // A real commit, so the cost of a network-backed volume shows up rather than hiding
+      // behind a cached read. Removed immediately; the row never outlives the check.
+      db.run(
+        "INSERT INTO rate_limits (bucket, window_start, count) VALUES ('__healthcheck', ?, 1) " +
+          'ON CONFLICT(bucket) DO UPDATE SET count = count + 1',
+        Date.now(),
+      );
+      db.run("DELETE FROM rate_limits WHERE bucket = '__healthcheck'");
+    });
+    await time('password_hash_ms', () => hashPassword('benchmark-only-never-stored'));
+
+    const slowest = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
+    return Response.json(
+      {
+        ...base,
+        timings,
+        slowest: slowest ? slowest[0] : null,
+        verdict:
+          (timings.db_write_ms ?? 0) > 500 ? 'האחסון איטי — כתיבה למסד לוקחת יותר מחצי שנייה'
+          : (timings.password_hash_ms ?? 0) > 1500 ? 'המעבר חנוק — גיבוב סיסמה לוקח יותר משנייה וחצי'
+          : (timings.db_open_ms ?? 0) > 1000 ? 'פתיחת המסד איטית — כנראה מיגרציה או נעילה'
+          : 'הכול בטווח תקין',
+      },
+      { headers: { 'cache-control': 'no-store' } },
+    );
+  } catch (caught) {
+    return Response.json(
+      { ...base, ok: false, timings, error: caught instanceof Error ? caught.message : String(caught) },
+      { status: 500, headers: { 'cache-control': 'no-store' } },
+    );
+  }
 }
