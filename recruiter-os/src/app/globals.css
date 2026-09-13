@@ -18,7 +18,7 @@
   --c-warn: 245 158 11;
   --c-danger: 225 29 72;
   --c-info: 14 165 233;
-  --font-ui: 'Rubik', 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-fallback: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* Chart palette — validated with the dataviz palette checker against the light
      surface (#ffffff): lightness band, chroma floor, CVD separation, contrast.
@@ -75,7 +75,7 @@
   body {
     background-color: rgb(var(--c-bg));
     color: rgb(var(--c-ink));
-    font-family: var(--font-ui);
+    font-family: var(--font-ui), var(--font-fallback);
     font-feature-settings: 'kern';
     -webkit-font-smoothing: antialiased;
   }

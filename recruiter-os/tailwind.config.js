@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-ui)', 'Rubik', 'Assistant', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-ui)', 'Assistant', 'system-ui', 'sans-serif'],
       },
       colors: {
         bg: 'rgb(var(--c-bg) / <alpha-value>)',
