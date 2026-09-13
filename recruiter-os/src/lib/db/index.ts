@@ -32,6 +32,24 @@ function toPlainObject(row: Row): Row {
   return { ...row };
 }
 
+/**
+ * A query slower than this is reported to the log with its SQL.
+ *
+ * Every statement here runs against a local file and should finish in single-digit
+ * milliseconds. On a managed host the same file may sit on network-backed storage, where
+ * a commit costs a round trip — and because this driver is synchronous, one slow write
+ * holds up every other request in the process. That failure is invisible from outside:
+ * pages simply take forever while the server looks healthy. Naming the statement makes it
+ * findable in the deploy log instead.
+ */
+const SLOW_QUERY_MS = 200;
+
+function reportSlow(sql: string, started: number): void {
+  const elapsed = performance.now() - started;
+  if (elapsed < SLOW_QUERY_MS) return;
+  console.warn(`[recruiter-os] שאילתה איטית (${Math.round(elapsed)}ms): ${sql.replace(/\s+/g, ' ').slice(0, 120)}`);
+}
+
 class SqliteDb implements Db {
   #db: DatabaseSync;
   #depth = 0;
@@ -45,21 +63,30 @@ class SqliteDb implements Db {
   }
 
   all<T = Row>(sql: string, ...params: Param[]): T[] {
-    return (this.#db.prepare(sql).all(...params) as Row[]).map(toPlainObject) as T[];
+    const started = performance.now();
+    const rows = (this.#db.prepare(sql).all(...params) as Row[]).map(toPlainObject) as T[];
+    reportSlow(sql, started);
+    return rows;
   }
 
   get<T = Row>(sql: string, ...params: Param[]): T | undefined {
+    const started = performance.now();
     const row = this.#db.prepare(sql).get(...params) as Row | undefined;
+    reportSlow(sql, started);
     return row === undefined ? undefined : (toPlainObject(row) as T);
   }
 
   run(sql: string, ...params: Param[]) {
+    const started = performance.now();
     const result = this.#db.prepare(sql).run(...params);
+    reportSlow(sql, started);
     return { changes: Number(result.changes) };
   }
 
   exec(sql: string) {
+    const started = performance.now();
     this.#db.exec(sql);
+    reportSlow(sql, started);
   }
 
   /** Nesting-safe: inner calls join the outer transaction instead of failing. */

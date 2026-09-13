@@ -1,5 +1,43 @@
+import fs from 'node:fs';
 import { getDb } from '@/lib/db/index';
 import { hashPassword } from '@/lib/auth/password';
+
+/**
+ * How much memory this container is allowed, and how much it is using.
+ *
+ * A container close to its ceiling behaves exactly like the symptom that is hardest to
+ * diagnose from outside: trivial endpoints stay instant while anything that allocates —
+ * rendering a page, reading a list — crawls, because the collector is running constantly
+ * to stay under the limit. The limit is not visible to Node, so it is read from the
+ * kernel's cgroup, where the platform actually sets it.
+ */
+function memory(): Record<string, number | string> {
+  const usage = process.memoryUsage();
+  const mb = (bytes: number) => Math.round(bytes / 1024 / 1024);
+
+  let limitMb: number | null = null;
+  for (const path of ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes']) {
+    try {
+      const raw = fs.readFileSync(path, 'utf8').trim();
+      if (raw && raw !== 'max') {
+        const bytes = Number(raw);
+        // An unset limit is reported as an absurdly large number rather than absent.
+        if (Number.isFinite(bytes) && bytes < 1024 ** 4) limitMb = mb(bytes);
+      }
+      break;
+    } catch {
+      /* not this layout */
+    }
+  }
+
+  const used = mb(usage.rss);
+  return {
+    rss_mb: used,
+    heap_mb: mb(usage.heapUsed),
+    limit_mb: limitMb ?? 'לא ידוע',
+    percent_used: limitMb ? Math.round((used / limitMb) * 100) : 'לא ידוע',
+  };
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -55,13 +93,17 @@ export async function GET(request: Request) {
     await time('password_hash_ms', () => hashPassword('benchmark-only-never-stored'));
 
     const slowest = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
+    const mem = memory();
+    const tight = typeof mem.percent_used === 'number' && mem.percent_used > 80;
     return Response.json(
       {
         ...base,
         timings,
+        memory: mem,
         slowest: slowest ? slowest[0] : null,
         verdict:
-          (timings.db_write_ms ?? 0) > 500 ? 'האחסון איטי — כתיבה למסד לוקחת יותר מחצי שנייה'
+          tight ? `הזיכרון כמעט מלא (${mem.percent_used}%) — זה מאט כל דף שמרנדר`
+          : (timings.db_write_ms ?? 0) > 500 ? 'האחסון איטי — כתיבה למסד לוקחת יותר מחצי שנייה'
           : (timings.password_hash_ms ?? 0) > 1500 ? 'המעבר חנוק — גיבוב סיסמה לוקח יותר משנייה וחצי'
           : (timings.db_open_ms ?? 0) > 1000 ? 'פתיחת המסד איטית — כנראה מיגרציה או נעילה'
           : 'הכול בטווח תקין',
