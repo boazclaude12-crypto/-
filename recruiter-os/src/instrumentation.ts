@@ -30,6 +30,9 @@ export async function register() {
   const { dirname, join } = await import('node:path');
   const dataDir = dirname(env.databaseFile);
   try {
+    // Nothing here may block for long: this runs before the server accepts requests, and
+    // the data directory is network-backed storage on a managed host — a slow mount would
+    // hold every page hostage rather than failing visibly.
     mkdirSync(dataDir, { recursive: true });
     const probe = join(dataDir, '.write-probe');
     writeFileSync(probe, '');
