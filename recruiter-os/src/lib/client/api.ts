@@ -11,13 +11,30 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * A request that never returns is worse than one that fails: the interface spins with
+ * nothing to act on, and the person watching cannot tell a slow network from a dead
+ * server. Everything here is a local database call, so a request still running after
+ * this long is not slow — it is stuck.
+ */
+const TIMEOUT_MS = 30_000;
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    credentials: 'same-origin',
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'same-origin',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === 'TimeoutError') {
+      throw new ApiRequestError(0, 'השרת לא הגיב בתוך 30 שניות. נסה שוב — ואם זה חוזר, זו תקלה בשרת.');
+    }
+    throw new ApiRequestError(0, 'אין חיבור לשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+  }
 
   if (response.status === 204) return undefined as T;
 

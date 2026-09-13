@@ -34,6 +34,22 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       } else {
         await api.post('/api/auth/login', { email, password });
       }
+
+      // Confirm the session cookie actually took before navigating. Without this, a
+      // browser that refuses the cookie sends the user straight back here, and because
+      // the button never leaves its loading state the whole thing reads as a page that
+      // hangs — with nothing on screen to explain it or act on. The endpoint answers 401
+      // when there is no session, so an error here is the answer, not a failure.
+      try {
+        await api.get<{ user: { id: string } }>('/api/auth/session');
+      } catch {
+        setError(
+          'ההתחברות הצליחה אבל הדפדפן לא שמר את העוגייה. בדוק חסימת עוגיות או גלישה בסתר, ונסה שוב.',
+        );
+        setBusy(false);
+        return;
+      }
+
       router.push('/dashboard');
       router.refresh();
     } catch (caught) {
