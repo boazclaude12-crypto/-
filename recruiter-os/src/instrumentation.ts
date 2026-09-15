@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { startWatchdog, recordSync, buildInfo } from '@/lib/watchdog';
 
 /**
  * Next.js runs this once when the server boots.
@@ -44,6 +45,11 @@ export async function register() {
     );
   }
 
+  const build = buildInfo();
+  // Stated once, at boot, so the deploy log itself answers "is my fix actually running?".
+  console.log(`[recruiter-os] גרסה ${build.buildId} (commit ${build.commit}, ענף ${build.branch})`);
+
+  startWatchdog();
   startMailboxSync();
 }
 
@@ -60,6 +66,12 @@ function startMailboxSync() {
     try {
       const { syncAllMailboxes } = await import('@/lib/email/sync');
       const results = await syncAllMailboxes();
+      const failed = results.filter((result) => result.error);
+      const imported = results.reduce((total, result) => total + result.summary.imported, 0);
+      recordSync(
+        failed.length === 0,
+        failed.length ? (failed[0].error as string) : `נבדקו ${results.length} תיבות, נקלטו ${imported}`,
+      );
       for (const result of results) {
         if (result.error) console.error(`[recruiter-os] סנכרון מייל נכשל (${result.orgId}): ${result.error}`);
         else if (result.summary.imported > 0) {
@@ -77,6 +89,7 @@ function startMailboxSync() {
       }
     } catch (caught) {
       // A failed sync must never take the web server down with it.
+      recordSync(false, caught instanceof Error ? caught.message : String(caught));
       console.error('[recruiter-os] סנכרון מייל נכשל:', caught);
     }
   };
