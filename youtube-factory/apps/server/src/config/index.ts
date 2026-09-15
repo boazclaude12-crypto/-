@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SecretString } from '../shared/crypto.js';
+import { applyPricingOverrides } from '../providers/rates.js';
 
 /**
  * The single place `process.env` is read (spec §2, §74). Everything else takes a typed
@@ -129,6 +130,8 @@ const envSchema = z.object({
   // Guardrails
   DEFAULT_MONTHLY_BUDGET_USD: num(100),
   MAX_CONCURRENT_RENDERS: int(1),
+  /** JSON overriding the built-in rate card; see providers/rates.ts. */
+  PRICING_OVERRIDES: z.string().optional(),
   PROVIDER_TIMEOUT_MS: int(120_000),
   PROVIDER_MAX_ATTEMPTS: int(3),
 
@@ -231,6 +234,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   if (isProduction && !env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required in production');
   }
+
+  // Applied before anything can estimate a cost, and deliberately allowed to throw: an
+  // override that silently failed to parse would leave the budget guard running on prices the
+  // operator believes they corrected.
+  applyPricingOverrides(env.PRICING_OVERRIDES);
 
   const hfPair = splitHiggsfieldCredentials(env);
 
