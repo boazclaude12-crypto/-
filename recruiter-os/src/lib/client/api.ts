@@ -41,6 +41,30 @@ function budgetFor(path: string): { ms: number; what: string | null } {
   return hit ? { ms: hit.ms, what: hit.what } : { ms: DEFAULT_TIMEOUT_MS, what: null };
 }
 
+/**
+ * An abort signal that fires after `ms`.
+ *
+ * `AbortSignal.timeout` only exists from Safari 16 / Chrome 103 onwards. On an older
+ * phone it is simply undefined, and calling it throws a TypeError *before* fetch is
+ * ever reached — every request in the app then fails instantly, which looks exactly
+ * like a dead server. The controller fallback works everywhere, so no browser is left
+ * without a timeout and none is broken by having one.
+ */
+function timeoutSignal(ms: number): { signal: AbortSignal; done: () => void; timedOut: () => boolean } {
+  const native = (AbortSignal as { timeout?: (ms: number) => AbortSignal }).timeout;
+  if (typeof native === 'function') {
+    const signal = native.call(AbortSignal, ms);
+    return { signal, done: () => {}, timedOut: () => signal.aborted };
+  }
+  const controller = new AbortController();
+  let fired = false;
+  const timer = setTimeout(() => {
+    fired = true;
+    controller.abort();
+  }, ms);
+  return { signal: controller.signal, done: () => clearTimeout(timer), timedOut: () => fired };
+}
+
 /** Says what timed out and how long it was given, rather than blaming the server. */
 function timeoutError(path: string): ApiRequestError {
   const { ms, what } = budgetFor(path);
@@ -53,7 +77,37 @@ function timeoutError(path: string): ApiRequestError {
   );
 }
 
+/**
+ * Turns a thrown fetch into something the user can act on.
+ *
+ * A timeout, a cancelled request and a dead connection are three different things, and
+ * calling them all "no internet" sends someone to restart a router over a bug. Anything
+ * that is not a network failure is reported as itself, so it can be seen and fixed.
+ */
+function failureFor(path: string, caught: unknown, timedOut: boolean): ApiRequestError {
+  if (timedOut) return timeoutError(path);
+  const name = caught instanceof Error ? caught.name : '';
+  if (name === 'TimeoutError') return timeoutError(path);
+  if (name === 'AbortError') return new ApiRequestError(0, 'הפעולה בוטלה.');
+  if (caught instanceof TypeError) {
+    return new ApiRequestError(0, 'אין חיבור לשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+  }
+  const detail = caught instanceof Error ? caught.message : String(caught);
+  return new ApiRequestError(0, `הבקשה נכשלה בדפדפן: ${detail}`);
+}
+
+/** Response bodies are usually JSON, but an error page is HTML — keep both readable. */
+function readPayload(text: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text.slice(0, 300) };
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const clock = timeoutSignal(budgetFor(path).ms);
   let response: Response;
   try {
     response = await fetch(path, {
@@ -61,24 +115,17 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'same-origin',
-      signal: AbortSignal.timeout(budgetFor(path).ms),
+      signal: clock.signal,
     });
   } catch (caught) {
-    if (caught instanceof DOMException && caught.name === 'TimeoutError') throw timeoutError(path);
-    throw new ApiRequestError(0, 'אין חיבור לשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+    throw failureFor(path, caught, clock.timedOut());
+  } finally {
+    clock.done();
   }
 
   if (response.status === 204) return undefined as T;
 
-  let payload: unknown = null;
-  const text = await response.text();
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { error: text };
-    }
-  }
+  const payload = readPayload(await response.text());
 
   if (!response.ok) {
     const data = payload as { error?: string; details?: unknown } | null;
@@ -95,20 +142,23 @@ export const api = {
 
   /** Multipart upload (CV files) — Content-Type is set by the browser. */
   async upload<T>(path: string, formData: FormData): Promise<T> {
+    const clock = timeoutSignal(budgetFor(path).ms);
     let response: Response;
     try {
       response = await fetch(path, {
         method: 'POST',
         body: formData,
         credentials: 'same-origin',
-        signal: AbortSignal.timeout(budgetFor(path).ms),
+        signal: clock.signal,
       });
     } catch (caught) {
-      if (caught instanceof DOMException && caught.name === 'TimeoutError') throw timeoutError(path);
-      throw new ApiRequestError(0, 'אין חיבור לשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+      throw failureFor(path, caught, clock.timedOut());
+    } finally {
+      clock.done();
     }
-    const text = await response.text();
-    const payload = text ? JSON.parse(text) : null;
+    // A failing host answers with an HTML error page, not JSON; parsing it raw would
+    // surface "Unexpected token '<'" instead of what actually went wrong.
+    const payload = readPayload(await response.text()) as { error?: string; details?: unknown } | null;
     if (!response.ok) {
       throw new ApiRequestError(response.status, payload?.error ?? 'העלאה נכשלה', payload?.details);
     }
