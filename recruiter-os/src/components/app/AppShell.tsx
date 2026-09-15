@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Icon } from '../ui/icons';
 import { Avatar, cx } from '../ui';
@@ -9,6 +9,25 @@ import { ToastProvider } from '../ui/Toast';
 import { CommandMenu } from './CommandMenu';
 import { QuickCreate } from './QuickCreate';
 import { api } from '@/lib/client/api';
+
+/**
+ * The pending marker on a link that was just clicked.
+ *
+ * `useLinkStatus` reports that this specific navigation is in flight, which is the only
+ * thing that can distinguish "I registered your click" from "nothing happened" during
+ * the round trip. It is scoped to its own component so that a pending navigation
+ * re-renders one row rather than the whole shell.
+ */
+function NavPending() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return (
+    <span
+      aria-hidden
+      className="ms-auto h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent opacity-60"
+    />
+  );
+}
 
 export interface ShellUser {
   name: string;
@@ -93,6 +112,7 @@ export function AppShell({ user, children }: { user: ShellUser; children: React.
             >
               <ItemIcon size={18} />
               {item.label}
+              <NavPending />
             </Link>
           );
         })}
@@ -108,6 +128,7 @@ export function AppShell({ user, children }: { user: ShellUser; children: React.
         >
           <Icon.Settings size={18} />
           הגדרות
+          <NavPending />
         </Link>
         <div className="flex items-center gap-2 rounded-lg px-2.5 py-2">
           <Avatar name={user.name} size={30} />
