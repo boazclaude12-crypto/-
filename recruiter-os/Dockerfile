@@ -19,6 +19,7 @@ ENV UPLOAD_DIR=/app/data/uploads
 # PORT is deliberately NOT set here. Hosts like Railway, Render and Fly inject it,
 # and a baked-in value can win over theirs — the app would then listen on a port
 # nothing routes to. Unset, `next start` uses $PORT when present and 3000 otherwise.
+# See the EXPOSE line below: the advertised port has to match the injected one.
 
 COPY --from=build /app/package.json /app/package-lock.json /app/next.config.mjs ./
 COPY --from=build /app/node_modules ./node_modules
@@ -34,7 +35,15 @@ COPY --from=build /app/docker-entrypoint.sh ./docker-entrypoint.sh
 # as happily, so creating it here is all that is needed anywhere.
 RUN chmod +x /app/docker-entrypoint.sh \
  && mkdir -p /app/data && chown -R node:node /app/data
-EXPOSE 3000
+# 8080, to match the port the app will actually be listening on.
+#
+# EXPOSE is only a hint — it opens nothing and binds nothing — but a host with no
+# explicit target port configured reads it to decide where to send traffic. Railway
+# injects PORT=8080, so `next start` listens on 8080; a Dockerfile advertising 3000
+# then sends the router to a port with nothing behind it, and every request comes
+# back as a gateway error while the container logs a clean, healthy start. The two
+# numbers have to agree, and this is the one of them that was only ever a guess.
+EXPOSE 8080
 # The entrypoint drops to the `node` user; it stays root only long enough to claim
 # the mounted volume. No -p flag on purpose: `next start` binds to $PORT, so the
 # host controls it.
