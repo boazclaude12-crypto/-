@@ -20,6 +20,7 @@ interface AccountView {
 }
 
 interface SyncSummary {
+  remaining: number;
   scanned: number;
   imported: number;
   duplicates: number;
@@ -132,7 +133,11 @@ export function MailboxCard() {
       setSummary(result.summary);
       if (result.error) setError(result.error);
       else if (result.summary.imported > 0) {
-        toast.success(`נקלטו ${result.summary.imported} מועמדים חדשים`);
+        toast.success(
+          result.summary.remaining > 0
+            ? `נקלטו ${result.summary.imported} מועמדים — נשארו עוד ${result.summary.remaining} מיילים`
+            : `נקלטו ${result.summary.imported} מועמדים חדשים`,
+        );
         router.refresh();
       } else {
         toast.info('אין פניות חדשות');
@@ -291,6 +296,13 @@ export function MailboxCard() {
           {summary.failed > 0 && <Badge tone="rose">{summary.failed} נכשלו</Badge>}
           {summary.scanned === 0 && <span className="text-sm text-faint">אין פניות חדשות</span>}
         </div>
+      )}
+
+      {summary && summary.remaining > 0 && (
+        <p className="mt-2 rounded-lg bg-brand-soft px-3 py-2 text-sm text-brand">
+          נשארו עוד {summary.remaining} מיילים לסריקה. לחץ &quot;משיכה עכשיו&quot; שוב —
+          כל לחיצה קולטת מנה נוספת, וזה גם קורה לבד כל רבע שעה.
+        </p>
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">

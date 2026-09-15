@@ -9,6 +9,8 @@ import { fetchApplications, describeImapError, type MailboxCredentials } from '.
 import type { EmailAccountRow } from '../types';
 
 export interface SyncSummary {
+  /** Messages still unread by the importer after this batch. */
+  remaining: number;
   scanned: number;
   imported: number;
   duplicates: number;
@@ -59,7 +61,7 @@ export async function syncMailbox(
 ): Promise<{ summary: SyncSummary; error: string | null }> {
   const account = mailboxFor(orgId);
   const empty: SyncSummary = {
-    scanned: 0, imported: 0, duplicates: 0, noAttachment: 0, unreadable: 0, failed: 0,
+    remaining: 0, scanned: 0, imported: 0, duplicates: 0, noAttachment: 0, unreadable: 0, failed: 0,
   };
   if (!account) return { summary: empty, error: 'לא מחוברת תיבת מייל' };
 
@@ -72,12 +74,13 @@ export async function syncMailbox(
   let error: string | null = null;
 
   try {
-    const messages = await fetchApplications(credentials, {
+    const { messages, remaining } = await fetchApplications(credentials, {
       folder: account.folder,
       since: account.since_date ? new Date(account.since_date) : undefined,
       seenUids: seenUids(orgId, account.id),
       limit: options.limit ?? 50,
     });
+    summary.remaining = remaining;
 
     for (const message of messages) {
       // Reading a CV is synchronous work — inflating a document, running the parser over
@@ -190,7 +193,7 @@ export async function syncAllMailboxes(): Promise<Array<{ orgId: string; summary
       // One unreachable mailbox must not stop the others.
       results.push({
         orgId: account.org_id,
-        summary: { scanned: 0, imported: 0, duplicates: 0, noAttachment: 0, unreadable: 0, failed: 0 },
+        summary: { remaining: 0, scanned: 0, imported: 0, duplicates: 0, noAttachment: 0, unreadable: 0, failed: 0 },
         error: caught instanceof Error ? caught.message : 'שגיאה לא ידועה',
       });
     }

@@ -122,23 +122,24 @@ export async function testConnection(
 export async function fetchApplications(
   credentials: MailboxCredentials,
   options: { folder?: string; since?: Date; seenUids: Set<string>; limit?: number },
-): Promise<FetchedMessage[]> {
+): Promise<{ messages: FetchedMessage[]; remaining: number }> {
   const folder = options.folder ?? 'INBOX';
   const limit = options.limit ?? 50;
 
   return withMailbox(credentials, folder, async (client) => {
     const since = options.since ?? new Date(Date.now() - 90 * 86_400_000);
     const uids = await client.search({ since }, { uid: true });
-    if (!uids || uids.length === 0) return [];
+    if (!uids || uids.length === 0) return { messages: [], remaining: 0 };
 
     // Newest first: a first sync on a large mailbox should surface recent applications,
     // not whichever ones happen to be oldest.
-    const pending = uids
+    const unseen = uids
       .map(String)
       .filter((uid) => !options.seenUids.has(uid))
-      .sort((a, b) => Number(b) - Number(a))
-      .slice(0, limit);
-    if (pending.length === 0) return [];
+      .sort((a, b) => Number(b) - Number(a));
+    const pending = unseen.slice(0, limit);
+    const remaining = unseen.length - pending.length;
+    if (pending.length === 0) return { messages: [], remaining: 0 };
 
     const messages: FetchedMessage[] = [];
     for await (const message of client.fetch(pending.join(','), { uid: true, source: true }, { uid: true })) {
@@ -167,6 +168,6 @@ export async function fetchApplications(
         attachments,
       });
     }
-    return messages;
+    return { messages, remaining };
   });
 }
