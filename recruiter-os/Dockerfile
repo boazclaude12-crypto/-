@@ -38,5 +38,11 @@ EXPOSE 3000
 # The entrypoint drops to the `node` user; it stays root only long enough to claim
 # the mounted volume. No -p flag on purpose: `next start` binds to $PORT, so the
 # host controls it.
+#
+# -H 0.0.0.0 is stated rather than assumed. A server bound to localhost is invisible
+# from outside its own container, and the platform's router then answers every request
+# with a gateway error while the process looks perfectly healthy from the inside —
+# the one failure mode that cannot be diagnosed from the application at all. It is
+# already the default; pinning it means a change to that default cannot cause it.
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["npx", "next", "start"]
+CMD ["npx", "next", "start", "-H", "0.0.0.0"]
