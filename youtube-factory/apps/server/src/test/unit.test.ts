@@ -19,7 +19,7 @@ import { FixedClock } from '../shared/clock.js';
 import { redact } from '../shared/logger.js';
 import { VideoStateMachine } from '../pipeline/state-machine.js';
 import { computeSlots } from '../services/scheduler.js';
-import { estimate } from '../providers/rates.js';
+import { applyPricingOverrides, estimate, type RateCard } from '../providers/rates.js';
 import { charactersToWords } from '../providers/adapters/elevenlabs.js';
 import { parseIsoDuration } from '../providers/adapters/youtube.js';
 import { buildCues, buildChapters, locateBlocks, toSrt, toVtt, shiftTimings } from '../media/captions.js';
@@ -386,6 +386,52 @@ describe('provider rate card', () => {
     const premium = estimate('higgsfield', { capability: 'generateVideo', seconds: 10, quality: 'premium' }).usd;
     const draft = estimate('higgsfield', { capability: 'generateVideo', seconds: 10, quality: 'draft' }).usd;
     expect(draft).toBeLessThan(premium);
+  });
+});
+
+describe('pricing overrides', () => {
+  /** A throwaway card, so these never mutate the module-level RATE_CARD other tests read. */
+  const card = (): Record<string, RateCard> => ({
+    higgsfield: { videoPerSecond: { draft: 0.06, standard: 0.12, premium: 0.24 }, image: { standard: 0.03 } },
+    elevenlabs: { voicePerThousandChars: 0.18 },
+  });
+
+  it('replaces only the tiers named, leaving the rest of the table intact', () => {
+    const c = card();
+    applyPricingOverrides('{"higgsfield":{"videoPerSecond":{"standard":0.15}}}', c);
+    expect(c.higgsfield?.videoPerSecond).toEqual({ draft: 0.06, standard: 0.15, premium: 0.24 });
+    // A partial override must not wipe the sibling fields on the same provider.
+    expect(c.higgsfield?.image).toEqual({ standard: 0.03 });
+  });
+
+  it('overrides a scalar rate', () => {
+    const c = card();
+    applyPricingOverrides('{"elevenlabs":{"voicePerThousandChars":0.3}}', c);
+    expect(c.elevenlabs?.voicePerThousandChars).toBe(0.3);
+  });
+
+  it('prices a provider the built-in card has never heard of', () => {
+    const c = card();
+    applyPricingOverrides('{"newvendor":{"image":{"standard":0.07}}}', c);
+    expect(c.newvendor?.image?.standard).toBe(0.07);
+  });
+
+  it('does nothing when unset or blank', () => {
+    const c = card();
+    applyPricingOverrides(undefined, c);
+    applyPricingOverrides('   ', c);
+    expect(c).toEqual(card());
+  });
+
+  it('throws rather than ignoring a malformed override', () => {
+    // Silently swallowing these is the dangerous branch: the operator would believe the
+    // correction had applied while the budget guard kept using the old number.
+    expect(() => applyPricingOverrides('{not json', card())).toThrow(/not valid JSON/);
+    expect(() => applyPricingOverrides('[1,2]', card())).toThrow(/keyed by provider/);
+    expect(() => applyPricingOverrides('{"higgsfield":5}', card())).toThrow(/must be an object/);
+    expect(() => applyPricingOverrides('{"higgsfield":{"image":"cheap"}}', card())).toThrow(
+      /must be a number or an object/,
+    );
   });
 });
 

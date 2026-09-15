@@ -79,6 +79,75 @@ one notification channel; an unconfigured channel is skipped rather than failing
 `MAX_CONCURRENT_RENDERS`, `DEFAULT_MONTHLY_BUDGET_USD`, `PROVIDER_TIMEOUT_MS`,
 `PROVIDER_MAX_ATTEMPTS`.
 
+`PRICING_OVERRIDES` carries JSON shaped like the rate card in `providers/rates.ts`, deep-merged
+over it at startup, so a price the vendor changed is a config edit rather than a fork:
+
+```bash
+PRICING_OVERRIDES='{"higgsfield":{"videoPerSecond":{"standard":0.15}}}'
+```
+
+Overriding one tier leaves the others alone, and an unknown provider is added rather than
+rejected. Malformed JSON throws at startup on purpose — an override you believe applied but
+which was silently dropped is worse than no override, because the budget guard would keep
+spending against the old number.
+
+## Connecting Higgsfield
+
+What the adapter needs from you is small and exact:
+
+```bash
+HF_CREDENTIALS=KEY_ID:KEY_SECRET       # one string, colon-separated
+# or, equivalently:
+HF_API_KEY=...
+HF_API_SECRET=...
+
+HIGGSFIELD_BASE_URL=https://platform.higgsfield.ai
+HIGGSFIELD_VIDEO_MODEL=dop-turbo       # dop-lite | dop-turbo | dop-standard
+HIGGSFIELD_WEBHOOK_URL=                # optional; polling is used when unset
+```
+
+Two credentials, not one — a key **id** and a key **secret**, sent as
+`Authorization: Key <KEY_ID>:<KEY_SECRET>`. That is what their SDK does, and it is what the
+contract tests in `providers.test.ts` pin.
+
+### What it will and will not do
+
+**There is no text-to-video endpoint in this API.** Text→video is composed as
+`POST /v1/text2image/soul` followed by `POST /v1/image2video/dop` — the same path the vendor's
+own SDK takes. The adapter refuses a video request with no first frame rather than pretending
+an endpoint exists, and a test asserts that refusal. If you were expecting to hand it a prompt
+and get footage in one call, that is not a gap in this code.
+
+Video generation is also **optional**. Without Higgsfield the pipeline still produces video:
+scenes fall back to a generated still plus camera motion through the local FFmpeg generator.
+You are buying better motion, not the ability to make a video at all.
+
+### Before you pay for it
+
+I could not reach `higgsfield.ai`, `docs.higgsfield.ai` or `platform.higgsfield.ai` from the
+environment this was built in — every one of them was blocked by egress policy. So:
+
+- **The adapter is written against their published SDK contract**, which I did read, and every
+  request it makes is pinned by a contract test. That part is solid.
+- **I have never seen their pricing page, their plan tiers, or whether API access requires a
+  particular subscription.** Nothing in this repository should be read as a claim about any of
+  those. Check on their site before subscribing, and specifically check that the plan you pick
+  includes **API access with a key id and secret** — a plan that only unlocks the web app would
+  be useless here.
+- **The Higgsfield rates in `providers/rates.ts` are placeholders, not quotes** — marked
+  `UNVERIFIED` in the file. Correct them from your first invoice with `PRICING_OVERRIDES`
+  (below). Until you do, cost estimates and the budget guard are running on a guess.
+
+The honest test is cheap: subscribe to whatever tier gives API credentials, put them in `.env`,
+and run
+
+```bash
+npm run factory --workspace @ycf/server -- doctor
+```
+
+It flips `higgsfield` from `not configured` to `ok` (or `unhealthy`, with the vendor's own
+error text) without spending anything on a generation.
+
 ## Test-only variables
 
 None of these are read by the running system — they exist so a test suite can attach to a real
